@@ -66,6 +66,8 @@ jobs:
             
             # Docker operations
             echo "Stopping containers..."
+            cd deploy
+            
             docker-compose down || true
             
             echo "Building containers..."
