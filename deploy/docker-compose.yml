@@ -1,5 +1,6 @@
 services:
-  frontend:
+  tf-front:
+    contrainer_name: tf-front
     build:
       context: ..
       dockerfile: deploy/Dockerfile
@@ -12,9 +13,9 @@ services:
     container_name: think-fast-frontend
     restart: unless-stopped
 
-#     networks:
-#       - web-proxy
+    networks:
+      - think-fast-net
 
-# networks:
-#   web-proxy:
-#     external: true
+networks:
+  think-fast-net:
+    external: true
