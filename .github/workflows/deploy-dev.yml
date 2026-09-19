@@ -1,4 +1,4 @@
-name: Deploy to DEV Server
+name: Deploy to dev Server
 
 permissions:
   contents: write
@@ -12,7 +12,7 @@ on:
       - 'master'
 
 env:
-  TARGET_BRANCH: DEV
+  TARGET_BRANCH: dev
   FRONTEND_CONTAINER: tf-front
 
 jobs:
@@ -29,11 +29,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Merge into DEV branch
+      - name: Merge into dev branch
         run: |
           git fetch origin ${{ env.TARGET_BRANCH }} || true
           git checkout ${{ env.TARGET_BRANCH }} || git checkout -b ${{ env.TARGET_BRANCH }}
-          git merge --no-ff ${{ github.ref_name }} -m "Merge ${{ github.ref_name }} into DEV via GitHub Actions"
+          git merge --no-ff ${{ github.ref_name }} -m "Merge ${{ github.ref_name }} into dev via GitHub Actions"
           git push origin ${{ env.TARGET_BRANCH }}
 
       - name: Deploy via SSH with debug
@@ -55,11 +55,11 @@ jobs:
             echo "Fetching latest changes..."
             git fetch origin
             
-            echo "Checking out DEV branch..."
-            git checkout DEV
+            echo "Checking out dev branch..."
+            git checkout dev
             
-            echo "Resetting to origin/DEV..."
-            git reset --hard origin/DEV
+            echo "Resetting to origin/dev..."
+            git reset --hard origin/dev
             
             echo "Current commit:"
             git log -1 --oneline
