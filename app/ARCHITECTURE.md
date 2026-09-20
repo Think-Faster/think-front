@@ -1,0 +1,385 @@
+# Архитектура фронтенда
+
+Документ описывает, как устроен код после перехода на слоистую архитектуру
+(`core / entities / features / widgets / shared / stores / app`), и как
+добавлять новые компоненты, сущности и разделы, не ломая существующую
+структуру.
+
+Общие архитектурные принципы (Zustand для client state, Repository для
+доступа к данным, единый API Client, workspace как набор окон, регистри вместо
+`switch/case`) взяты из `react-frontend-architecture.md`. Этот файл — не
+повторение той спецификации, а практическое "как сделать X в этом конкретном
+проекте".
+
+## Что было сделано
+
+Раньше весь код лежал плоско в `components/`, `pages/`, `api/`, `data/`, а
+состояние окон жило в React Context (`WindowManager`), список окон в
+`DashboardPage` был захардкожен восемью повторяющимися блоками
+`windows.find(w => w.id === '...')`. Авторизация была `useState` в `App.tsx`,
+401 обрабатывался через `window.location.href`.
+
+Это переписано на:
+
+- **Zustand** вместо Context — `stores/auth`, `stores/workspace`;
+- **Repository** вместо прямой мутации моков — `entities/prediction/predictionRepository.ts`;
+- **Registry** вместо `switch/if по id` — `core/registry/windowRegistry.ts`;
+- **URL-сериализацию workspace** — открытые окна попадают в `?windows=...&active=...`,
+  что даёт восстановление layout по прямой ссылке;
+- **Единый API Client** с обработкой 401 через `core/auth/authEvents.ts` +
+  `core/routing/navigation.ts` (без `window.location.href`);
+- **shared/ui** — переиспользуемые компоненты, вынесенные из повторяющейся
+  разметки (`Button`, `Badge`, `ChipFilterGroup`, `Window` и т.д.).
+
+Стили (`src/styles/index.css`) не менялись — все новые компоненты используют
+те же className, что и раньше.
+
+Заодно починена нерабочая часть проекта: `src/index.js`/`src/App.js` (старые
+файлы create-react-app) резолвились раньше `index.tsx`/`app/App.tsx` из-за
+порядка расширений в `react-scripts`, из-за чего реальный TSX-код никогда не
+запускался. Также отсутствовал `tsconfig.json` и `@types/react-dom` — без них
+TypeScript не подключался вообще. Все три файла/пакета добавлены.
+
+## Структура директорий
+
+```text
+src/
+├── app/                     # bootstrap, роутинг, layout — НЕ бизнес-логика
+│   ├── App.tsx               # инициализация auth, BrowserRouter
+│   ├── AppRoutes.tsx          # список маршрутов
+│   ├── NavigationBridge.tsx    # регистрирует useNavigate() для core/routing
+│   ├── layouts/
+│   │   └── WorkspaceLayout.tsx # Header + WindowToolbar + <Outlet/>
+│   └── routing/
+│       └── ProtectedRoute.tsx
+│
+├── core/                    # инфраструктура, не знает о конкретных сущностях
+│   ├── config/config.ts       # ENV → AppConfig
+│   ├── api/
+│   │   ├── client.ts           # единственный axios-инстанс + 401-интерцептор
+│   │   └── endpoints.ts        # строки путей backend
+│   ├── auth/
+│   │   ├── types.ts
+│   │   ├── authApi.ts           # HTTP-обёртка над /auth/*
+│   │   └── authEvents.ts        # pub/sub для "случился 401"
+│   ├── routing/navigation.ts    # navigate() вне React-дерева
+│   ├── errors/httpError.ts      # classifyError(): 400/401/403/404/409/422/429/5xx/network
+│   ├── permissions/permissionService.ts  # can(resource, action)
+│   ├── registry/windowRegistry.ts        # id → { component, defaultView, title }
+│   └── workspace/workspaceUrlSerializer.ts
+│
+├── entities/                # доменные сущности: тип + данные + repository
+│   └── prediction/
+│       ├── types.ts
+│       ├── mockData.ts
+│       └── predictionRepository.ts
+│
+├── stores/                  # Zustand — только client state
+│   ├── auth/authStore.ts
+│   └── workspace/windowsStore.ts
+│
+├── features/                # пользовательские сценарии поверх entities
+│   ├── auth/LoginForm.tsx
+│   └── predictions/
+│       ├── PredictionQueueWindow.tsx
+│       ├── PredictionDetailWindow.tsx
+│       ├── PredictionFilters.tsx
+│       ├── predictionLabels.ts
+│       └── hooks/{usePredictions,usePrediction}.ts
+│
+├── widgets/                 # самостоятельные UI-блоки для workspace
+│   ├── workspace/{WorkspaceCanvas,WindowToolbar,useWorkspaceUrlSync}
+│   ├── header/AppHeader.tsx
+│   ├── map/MapWidget.tsx
+│   ├── schematic/SchematicWidget.tsx
+│   ├── timeline/TimelineWidget.tsx
+│   ├── objectCard/ObjectCardWidget.tsx
+│   ├── stream/StreamWidget.tsx
+│   └── actionLog/ActionLogWidget.tsx
+│
+├── shared/                  # ничего не знает про backend-сущности
+│   ├── ui/{Button,Badge,ChipFilterGroup,ProgressBar,StatChip,Tag,
+│   │        SensorRow,Breadcrumb,Window,EmptyState}.tsx
+│   └── hooks/{useInterval,useClock}.ts
+│
+└── pages/                   # тонкие точки для роутов
+    ├── LoginPage.tsx
+    └── WorkspacePage.tsx
+```
+
+Правило простое: если код знает про HTTP/axios — он в `core/api` или
+`entities/*/repository`. Если знает про конкретную сущность (`Prediction`) —
+он в `entities` или `features`. Если это чистая презентация без завязки на
+сущность — он в `shared/ui` или `widgets`.
+
+---
+
+## Как добавить новый переиспользуемый UI-компонент
+
+Переиспользуемый компонент — это компонент, который ничего не знает про
+`Prediction`, `User` и т.д., принимает всё через props и просто рендерит
+разметку/стили.
+
+1. Создать файл в `src/shared/ui/MyComponent.tsx`.
+2. Все данные — через props, без дефолтных бизнес-значений внутри (дефолты —
+   только UI-шные, например `variant = 'default'`).
+3. Использовать существующие className из `styles/index.css`, если похожий
+   визуальный паттерн уже есть — не плодить новый CSS.
+
+Пример по образцу `Badge.tsx`:
+
+```tsx
+// src/shared/ui/Tooltip.tsx
+interface TooltipProps {
+  text: string;
+  children: ReactNode;
+}
+
+export default function Tooltip({ text, children }: TooltipProps) {
+  return (
+    <span className="tooltip" title={text}>
+      {children}
+    </span>
+  );
+}
+```
+
+Если компонент завязан на конкретную сущность (например, «карточка
+пользователя» с полями `User`) — он **не** идёт в `shared/ui`. Его место —
+`entities/user` (если это стандартное отображение сущности) или
+`features/<feature>` (если это часть конкретного сценария). `shared/ui` —
+только для настоящих примитивов (кнопка, бейдж, чип, прогресс-бар).
+
+---
+
+## Как добавить новую доменную сущность (entity)
+
+Пример: добавляем сущность `Room` (аналог того, что описано в архитектурном
+документе).
+
+1. **Типы** — `src/entities/room/types.ts`:
+
+   ```ts
+   export interface Room {
+     id: string;
+     name: string;
+     status: 'active' | 'inactive';
+   }
+   ```
+
+2. **Repository** — `src/entities/room/roomRepository.ts`. Контракт
+   `get/getList/create/update/delete` — реализовывать только то, что реально
+   используется (не писать `delete`, если в UI нет кнопки удаления).
+
+   ```ts
+   import { apiClient } from '../../core/api/client';
+   import { Room } from './types';
+
+   export const roomRepository = {
+     async getList(): Promise<Room[]> {
+       const { data } = await apiClient.get<Room[]>('/rooms');
+       return data;
+     },
+
+     async get(id: string): Promise<Room> {
+       const { data } = await apiClient.get<Room>(`/rooms/${id}`);
+       return data;
+     },
+
+     async update(id: string, patch: Partial<Room>): Promise<Room> {
+       const { data } = await apiClient.patch<Room>(`/rooms/${id}`, patch);
+       return data;
+     },
+   };
+   ```
+
+   Пока нет реального backend-эндпоинта — можно сделать репозиторий как
+   `predictionRepository.ts`: in-memory массив + `delay()`, с тем же самым
+   контрактом методов. Когда появится BFF-эндпоинт, меняется только тело
+   методов репозитория — компоненты не трогаются.
+
+3. **Не обращаться к `apiClient`/`axios` напрямую из компонентов** — только
+   через repository. Это единственное жёсткое правило слоя `entities`.
+
+4. Если сущности нужен путь в `core/api/endpoints.ts` — добавить его туда,
+   а не хардкодить строку в repository:
+
+   ```ts
+   export const endpoints = {
+     auth: { ... },
+     rooms: {
+       list: '/rooms',
+       byId: (id: string) => `/rooms/${id}`,
+     },
+   } as const;
+   ```
+
+---
+
+## Как добавить новую feature (пользовательский сценарий)
+
+Feature — это то, что видит и с чем взаимодействует пользователь: форма,
+список с фильтрами, панель деталей. Она использует entity (repository, types)
+и собирает поведение.
+
+1. Директория `src/features/<feature-name>/`.
+2. Хуки для данных — в `hooks/`, по образцу
+   `features/predictions/hooks/usePredictions.ts`:
+   - хук инкапсулирует вызов repository + локальное состояние (фильтры,
+     loading);
+   - компонент фичи только рендерит то, что вернул хук.
+3. Презентационные куски, которые можно переиспользовать в рамках фичи
+   (например, панель фильтров), — отдельным файлом
+   (`PredictionFilters.tsx`), а не встроены в один большой компонент.
+4. Не создавать отдельный файл на каждую мелочь, если она нигде больше не
+   переиспользуется — как `PredictionDetailWindow.tsx` объединяет разметку
+   карточки прогноза без отдельного `PredictionDetailPanel.tsx`.
+
+Мини-пример фичи `room-status`:
+
+```text
+features/room-status/
+├── hooks/useRoomStatus.ts   # roomRepository.getList() + refetch
+└── RoomStatusList.tsx        # рендер списка, использует shared/ui Badge и т.д.
+```
+
+---
+
+## Как добавить новое окно в Workspace
+
+Это самый частый сценарий добавления функциональности в этот конкретный
+проект — рабочая область состоит из независимых окон, и *добавление окна не
+должно требовать правок `WorkspaceCanvas.tsx` или `WindowToolbar.tsx`*.
+
+1. Сделать сам виджет — presentational-компонент без пропсов (или с
+   пропсами, у которых есть дефолты), в `src/widgets/<name>/<Name>Widget.tsx`.
+   Если окну нужны данные конкретной сущности — используйте
+   `features/<feature>` компонент вместо чистого widget (как `queue` и `pred`
+   в реестре ссылаются на компоненты из `features/predictions`).
+
+2. Зарегистрировать окно в `src/core/registry/windowRegistry.ts`:
+
+   ```ts
+   import RoomStatusList from '../../features/room-status/RoomStatusList';
+
+   // ...
+   {
+     id: 'rooms',
+     title: 'Статус помещений',
+     component: RoomStatusList,
+     defaultView: { x: 20, y: 900, width: 400, height: 300, open: false, z: 18 },
+   },
+   ```
+
+3. Больше ничего менять не нужно — `WorkspaceCanvas` и `WindowToolbar`
+   автоматически подхватят новую запись реестра, `windowsStore` создаст для
+   неё runtime-состояние при первом запуске (или возьмёт restored-состояние
+   из localStorage/URL, если id уже встречался).
+
+`id` должен быть уникальным и стабильным — он используется как ключ и в
+`localStorage` (`kontur_layout_v3`), и в URL (`?windows=...`). Менять `id`
+существующего окна нельзя без потери сохранённого layout у пользователей.
+
+---
+
+## Как работать с состоянием (Zustand)
+
+Новый store нужен, только если это client state, который не завязан на
+конкретный fetch с backend (см. `react-frontend-architecture.md`, §65).
+
+- Runtime-состояние UI (открытые окна, авторизация, выбранные фильтры,
+  видимость модалки) → Zustand store в `stores/<domain>/`.
+- Данные с backend (список прогнозов, комнат и т.д.) → не в Zustand, а в
+  локальном состоянии хука фичи (`usePredictions`), которое читает из
+  repository. Если проект дорастёт до React Query — этот хук достаточно
+  переписать внутри, наружу (компоненты) ничего не поменяется.
+
+Пример нового store — по образцу `windowsStore.ts`:
+
+```ts
+// src/stores/notifications/notificationsStore.ts
+import { create } from 'zustand';
+
+interface Notification { id: string; text: string; }
+
+interface NotificationsState {
+  items: Notification[];
+  push: (text: string) => void;
+  dismiss: (id: string) => void;
+}
+
+export const useNotificationsStore = create<NotificationsState>(set => ({
+  items: [],
+  push: text =>
+    set(state => ({ items: [...state.items, { id: crypto.randomUUID(), text }] })),
+  dismiss: id =>
+    set(state => ({ items: state.items.filter(item => item.id !== id) })),
+}));
+```
+
+Не смешивать `authStore` и `windowsStore` — это два независимых стора, и
+третий домен состояния должен быть третьим стором, а не полем в одном из
+существующих (§8, §24 архитектурного документа).
+
+---
+
+## Обработка ошибок и permissions
+
+- Любая ошибка HTTP-запроса классифицируется через
+  `core/errors/httpError.ts` → `classifyError(error)`. Не разбирать
+  `error.response.status` вручную в компонентах — см. пример в
+  `features/auth/LoginForm.tsx`.
+- 401 не обрабатывается в компонентах вообще — это происходит централизованно
+  в `core/api/client.ts` → `authEvents` → `authStore.handleUnauthorized()` →
+  редирект на `/login` через `core/routing/navigation.ts`.
+- Проверка прав — через `core/permissions/permissionService.ts`:
+  `can(resource, action)`. Сейчас это заглушка (`return true`), потому что
+  RBAC на бэкенде ещё не реализован — но все точки, где логически нужна
+  проверка прав (см. использование в `PredictionDetailWindow.tsx`), уже
+  проходят через эту функцию. Когда появится реальный RBAC от BFF, меняется
+  только тело `can()` (например, читает `authStore.user.permissions`) — вызовы
+  в фичах не трогаются.
+
+---
+
+## Конфигурация
+
+Все параметры, которые могут отличаться между окружениями, — в
+`core/config/config.ts`, читаются из `process.env.REACT_APP_*` с дефолтами
+для локальной разработки:
+
+```ts
+export const config = {
+  appName: process.env.REACT_APP_APP_NAME || 'КОНТУР',
+  environment: process.env.REACT_APP_ENVIRONMENT || 'development',
+  apiBaseUrl: process.env.REACT_APP_API_BASE_URL || '/api',
+};
+```
+
+Не хардкодить `/api/...` в компонентах или repository — базовый URL берётся
+из `config.apiBaseUrl` (уже зашит в `core/api/client.ts`), а конкретные пути
+собираются в `core/api/endpoints.ts` (для auth) или прямо в repository для
+остальных сущностей, пока их немного.
+
+---
+
+## Чего сознательно нет (и почему)
+
+Чтобы не переусложнять то, что реально не нужно на этом этапе (см. §99
+архитектурного документа):
+
+- **Нет `RendererRegistry`/generic `Form`/`Table`.** Единственная сущность
+  сейчас (`Prediction`) отображается кастомными окнами, а не generic CRUD
+  таблицей — schema-driven рендеринг полей появится, когда в проекте будет
+  реальный CRUD-раздел (список/форма редактирования сущности), а не только
+  workspace с мониторингом.
+- **Нет `SectionRegistry`.** Пока в приложении один "раздел" — workspace.
+  Когда появится второй маршрут верхнего уровня со своим набором прав и
+  своим меню (не окно внутри workspace, а отдельная страница), стоит завести
+  `core/registry/sectionRegistry.ts` по аналогии с `windowRegistry.ts`.
+- **RBAC не проверяется по-настоящему** — `can()` всегда возвращает `true`.
+  Это осознанная заглушка, а не забытая доработка.
+- **Нет React Query.** Хуки фич (`usePredictions`, `usePrediction`) сделаны
+  вручную поверх repository. Добавлять React Query стоит, когда появится
+  реальная надобность в кэшировании/инвалидации между независимыми частями
+  экрана, а не заранее.
