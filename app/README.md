@@ -2,6 +2,9 @@
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
+> Структура проекта, слои (`core/entities/features/widgets/shared/stores`) и
+> инструкции по добавлению компонентов/сущностей/окон — см. [ARCHITECTURE.md](./ARCHITECTURE.md).
+
 ## Available Scripts
 
 In the project directory, you can run:
