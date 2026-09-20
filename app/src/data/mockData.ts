@@ -1,0 +1,116 @@
+export type Risk =
+  | 'high'
+  | 'med'
+  | 'low';
+
+export type PredictionStatus =
+  | 'new'
+  | 'work'
+  | 'rejected';
+
+export interface Prediction {
+  id: string;
+  risk: Risk;
+  object: string;
+  segment: string;
+  title: string;
+  probability: number;
+  horizon: string;
+  status: PredictionStatus;
+  rejectReason?: string;
+  why: string[];
+  recommendation: string;
+}
+
+export const predictions: Prediction[] = [
+  {
+    id: 'p1',
+    risk: 'high',
+    object: 'К-142',
+    segment: 'пикет 24+350',
+    title: 'Повреждение коллектора',
+    probability: 87,
+    horizon: '24 ч',
+    status: 'new',
+    why: [
+      'рост температуры на T-142-04 (+3.1°C за 40 мин)',
+      'изменение давления на соседнем участке P-142-02',
+      'аномальная динамика, не объяснимая суточным циклом',
+      'похожий паттерн зафиксирован на К-90 в марте',
+    ],
+    recommendation:
+      'Проверить участок 24+300–24+400 в течение 24 часов',
+  },
+
+  {
+    id: 'p2',
+    risk: 'med',
+    object: 'НС-7',
+    segment: 'насос №2',
+    title:
+      'Снижение эффективности насоса',
+    probability: 61,
+    horizon: '72 ч',
+    status: 'new',
+    why: [
+      'постепенный рост вибрации подшипника',
+      'увеличенное энергопотребление при том же расходе',
+      'плановое ТО просрочено на 9 дней',
+    ],
+    recommendation:
+      'Включить в ближайший плановый выезд на НС-7',
+  },
+
+  {
+    id: 'p3',
+    risk: 'low',
+    object: 'ТК-18',
+    segment: 'камера №3',
+    title: 'Отклонение уровня',
+    probability: 34,
+    horizon: '7 дн',
+    status: 'new',
+    why: [
+      'уровень выше нормы на 6% последние 3 дня',
+      'сопоставимо с сезонным паводковым паттерном',
+    ],
+    recommendation:
+      'Наблюдать, дополнительных действий не требуется',
+  },
+
+  {
+    id: 'p4',
+    risk: 'high',
+    object: 'К-90',
+    segment: 'пикет 11+200',
+    title: 'Риск засора',
+    probability: 79,
+    horizon: '48 ч',
+    status: 'work',
+    why: [
+      'расход упал на 18% при стабильном притоке',
+      'исторический паттерн засора на этом участке',
+    ],
+    recommendation:
+      'Выездная проверка и промывка участка',
+  },
+
+  {
+    id: 'p5',
+    risk: 'med',
+    object: 'К-142',
+    segment: 'пикет 09+800',
+    title:
+      'Аномалия влажности грунта',
+    probability: 52,
+    horizon: '5 дн',
+    status: 'rejected',
+    rejectReason: 'Ошибка датчика',
+    why: [
+      'кратковременный скачок влажности вокруг сенсора H-142-11',
+      'нет подтверждения по соседним сенсорам',
+    ],
+    recommendation:
+      'Точечная диагностика сенсора H-142-11',
+  },
+];
