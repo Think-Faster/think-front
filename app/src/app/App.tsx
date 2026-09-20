@@ -1,37 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 
+import { useAuthStore } from '../stores/auth/authStore';
 import AppRoutes from './AppRoutes';
-import { getCurrentUser } from '../api/auth';
+import NavigationBridge from './NavigationBridge';
 
 export default function App() {
-  const [authenticated, setAuthenticated] =
-    useState<boolean | null>(null);
+  const status = useAuthStore(state => state.status);
+  const initialize = useAuthStore(state => state.initialize);
 
   useEffect(() => {
-    getCurrentUser()
-      .then(() => {
-        setAuthenticated(true);
-      })
-      .catch(() => {
-        setAuthenticated(false);
-      });
-  }, []);
+    initialize();
+  }, [initialize]);
 
-  if (authenticated === null) {
-    return (
-      <div className="app-loading">
-        Загрузка…
-      </div>
-    );
+  if (status === 'unknown') {
+    return <div className="app-loading">Загрузка…</div>;
   }
 
   return (
     <BrowserRouter>
-      <AppRoutes
-        authenticated={authenticated}
-        setAuthenticated={setAuthenticated}
-      />
+      <NavigationBridge />
+      <AppRoutes />
     </BrowserRouter>
   );
 }
