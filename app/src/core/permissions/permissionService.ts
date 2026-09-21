@@ -9,7 +9,9 @@ export type PermissionAction =
   | 'import'
   | 'manage';
 
-function hasPermission(
+// Экспортирована для core/registry/windowRegistry.ts (видимость окна по
+// правам — не хук, считается один раз на карте, а не на каждое окно).
+export function hasPermission(
   map: Record<string, PermissionAction[]>,
   resource: string,
   action: PermissionAction
