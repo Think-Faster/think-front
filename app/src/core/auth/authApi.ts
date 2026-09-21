@@ -1,11 +1,20 @@
 import { apiClient } from '../api/client';
 import { endpoints } from '../api/endpoints';
-import { CurrentUser, LoginRequest } from './types';
+import { CurrentUser, LoginRequest, RegisterRequest } from './types';
 
 export const authApi = {
   async login(request: LoginRequest): Promise<CurrentUser> {
     const response = await apiClient.post<CurrentUser>(
       endpoints.auth.login,
+      request
+    );
+
+    return response.data;
+  },
+
+  async register(request: RegisterRequest): Promise<CurrentUser> {
+    const response = await apiClient.post<CurrentUser>(
+      endpoints.auth.register,
       request
     );
 

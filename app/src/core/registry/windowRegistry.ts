@@ -1,5 +1,6 @@
 import { ComponentType } from 'react';
 
+import AccessWindow from '../../features/access/AccessWindow';
 import PredictionDetailWindow from '../../features/predictions/PredictionDetailWindow';
 import PredictionQueueWindow from '../../features/predictions/PredictionQueueWindow';
 import ActionLogWidget from '../../widgets/actionLog/ActionLogWidget';
@@ -75,5 +76,11 @@ export const windowRegistry: WindowDefinition[] = [
     title: 'Журнал действий',
     component: ActionLogWidget,
     defaultView: { x: 1150, y: 466, width: 340, height: 300, open: true, z: 17 },
+  },
+  {
+    id: 'access',
+    title: 'Пользователи и группы',
+    component: AccessWindow,
+    defaultView: { x: 872, y: 466, width: 400, height: 420, open: false, z: 18 },
   },
 ];

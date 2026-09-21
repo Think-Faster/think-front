@@ -4,6 +4,7 @@ import { authApi } from '../../core/auth/authApi';
 import { onUnauthorized } from '../../core/auth/authEvents';
 import { CurrentUser, LoginRequest } from '../../core/auth/types';
 import { redirectToLogin } from '../../core/routing/navigation';
+import { usePermissionsStore } from '../permissions/permissionsStore';
 
 export type AuthStatus = 'unknown' | 'authenticated' | 'unauthenticated';
 
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const user = await authApi.getCurrentUser();
       set({ status: 'authenticated', user });
+      usePermissionsStore.getState().load();
     } catch {
       set({ status: 'unauthenticated', user: null });
     }
@@ -32,6 +34,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async request => {
     const user = await authApi.login(request);
     set({ status: 'authenticated', user });
+    usePermissionsStore.getState().load();
   },
 
   logout: async () => {
