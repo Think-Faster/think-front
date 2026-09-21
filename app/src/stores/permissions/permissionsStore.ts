@@ -7,33 +7,25 @@ export type PermissionsMap = Record<string, PermissionAction[]>;
 
 interface PermissionsState {
   map: PermissionsMap;
-  source: 'bff' | 'mock';
   load: () => Promise<void>;
 }
 
-// Пока BFF не поднят локально (или недоступен во время тестирования) —
-// используем эту карту, чтобы UI оставался рабочим. Как только
-// GET /permissions/me отвечает успешно, она заменяется реальными правами.
-const mockPermissions: PermissionsMap = {
-  users: ['create', 'read', 'update', 'delete'],
-  groups: ['create', 'read', 'update', 'delete'],
-  permissions: ['read'],
-};
-
+// Пустая карта = нет прав ни на один ресурс. Это и стартовое значение (пока
+// GET /permissions/me ещё не ответил), и то, во что карта откатывается при
+// ошибке запроса — раздел, завязанный на права, не должен показываться
+// "на всякий случай". Разделы на локальных моках (предсказания) под это не
+// подпадают — они не требуют permission вовсе, см.
+// core/registry/windowRegistry.ts.
 export const usePermissionsStore = create<PermissionsState>(set => ({
-  map: mockPermissions,
-  source: 'mock',
+  map: {},
 
   load: async () => {
     try {
       const response = await permissionsApi.getMyPermissions();
-      set({ map: response.permissions, source: 'bff' });
+      set({ map: response.permissions });
     } catch (error) {
-      console.warn(
-        'GET /permissions/me недоступна — используются тестовые права доступа',
-        error
-      );
-      set({ map: mockPermissions, source: 'mock' });
+      console.warn('GET /permissions/me недоступна — доступ к разделам с правами скрыт', error);
+      set({ map: {} });
     }
   },
 }));

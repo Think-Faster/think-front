@@ -1,5 +1,6 @@
 import { ComponentType } from 'react';
 
+import { hasPermission, PermissionAction } from '../permissions/permissionService';
 import AccessWindow from '../../features/access/AccessWindow';
 import PredictionDetailWindow from '../../features/predictions/PredictionDetailWindow';
 import PredictionQueueWindow from '../../features/predictions/PredictionQueueWindow';
@@ -19,11 +20,33 @@ export interface WindowDefaultView {
   z: number;
 }
 
+export interface WindowPermissionRequirement {
+  resource: string;
+  action: PermissionAction;
+}
+
 export interface WindowDefinition {
   id: string;
   title: string;
   component: ComponentType;
   defaultView: WindowDefaultView;
+  // Не задано — окно на локальных моках (не привязано к реальному BFF-
+  // ресурсу), видно всегда. Задано — окно видно, только если у пользователя
+  // есть хотя бы одно из перечисленных прав (логическое ИЛИ).
+  requiredPermission?: WindowPermissionRequirement[];
+}
+
+export function isWindowVisible(
+  definition: WindowDefinition,
+  permissions: Record<string, PermissionAction[]>
+): boolean {
+  if (!definition.requiredPermission) {
+    return true;
+  }
+
+  return definition.requiredPermission.some(({ resource, action }) =>
+    hasPermission(permissions, resource, action)
+  );
 }
 
 // Adding a new workspace window is a registry entry, not a change to
@@ -82,5 +105,9 @@ export const windowRegistry: WindowDefinition[] = [
     title: 'Пользователи и группы',
     component: AccessWindow,
     defaultView: { x: 872, y: 466, width: 400, height: 420, open: false, z: 18 },
+    requiredPermission: [
+      { resource: 'users', action: 'read' },
+      { resource: 'groups', action: 'read' },
+    ],
   },
 ];

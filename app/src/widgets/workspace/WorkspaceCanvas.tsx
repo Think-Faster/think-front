@@ -1,5 +1,6 @@
-import { windowRegistry } from '../../core/registry/windowRegistry';
+import { isWindowVisible, windowRegistry } from '../../core/registry/windowRegistry';
 import Window from '../../shared/ui/Window';
+import { usePermissionsStore } from '../../stores/permissions/permissionsStore';
 import { useWindowsStore } from '../../stores/workspace/windowsStore';
 import { useWorkspaceUrlSync } from './useWorkspaceUrlSync';
 
@@ -9,10 +10,15 @@ export default function WorkspaceCanvas() {
   const windows = useWindowsStore(state => state.windows);
   const focusWindow = useWindowsStore(state => state.focusWindow);
   const updateWindow = useWindowsStore(state => state.updateWindow);
+  const permissions = usePermissionsStore(state => state.map);
 
   return (
     <div className="canvas-inner">
       {windowRegistry.map(definition => {
+        if (!isWindowVisible(definition, permissions)) {
+          return null;
+        }
+
         const state = windows.find(window => window.id === definition.id);
         if (!state?.open) {
           return null;
