@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import { authApi } from '../../core/auth/authApi';
 import { onUnauthorized } from '../../core/auth/authEvents';
+import { clearAllCookies } from '../../core/auth/clearAllCookies';
 import { CurrentUser, LoginRequest } from '../../core/auth/types';
 import { redirectToLogin } from '../../core/routing/navigation';
 import { usePermissionsStore } from '../permissions/permissionsStore';
@@ -13,7 +14,7 @@ interface AuthState {
   user: CurrentUser | null;
   initialize: () => Promise<void>;
   login: (request: LoginRequest) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: () => void;
   handleUnauthorized: () => void;
 }
 
@@ -37,8 +38,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     usePermissionsStore.getState().load();
   },
 
-  logout: async () => {
-    await authApi.logout();
+  // Нет ручки логаута на бэкенде — сносим куки на фронте и уходим на /login.
+  // См. предупреждение в core/auth/clearAllCookies.ts про HttpOnly-куки.
+  logout: () => {
+    clearAllCookies();
     set({ status: 'unauthenticated', user: null });
     redirectToLogin();
   },

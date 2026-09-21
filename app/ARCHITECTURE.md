@@ -62,15 +62,22 @@ TypeScript не подключался вообще. Все три файла/п
   workspace, с переключением вкладок через переиспользованный
   `ChipFilterGroup` (`features/users/UsersPanel.tsx` +
   `features/groups/GroupsPanel.tsx`).
-- Создание пользователя — двухшаговый сценарий
-  (`features/users/hooks/useCreateUser.ts`): сначала
-  `POST /api/auth/register` (сервис аутентификации, не BFF; принимает
-  `userName`+`password`+`email`, все три обязательны), и только при успехе —
-  `POST /bff/users` с `authUserId` из ответа регистрации. Контракт
-  `/api/auth/register` не описан в доступной документации — сделан по
-  аналогии с `LoginRequest`/`CurrentUser`; при расхождении с реальным API
-  правится только `RegisterRequest` (`core/auth/types.ts`) и
-  `authApi.register` (`core/auth/authApi.ts`), вызывается из одного места.
+- Создание пользователя — два независимых источника учётки, переключатель
+  в форме («Новая учётная запись» / «Существующая учётная запись», см.
+  `UsersPanel.tsx`, тип `CreateUserInput` в
+  `features/users/hooks/useCreateUser.ts`), потому что учётка (сервис
+  аутентификации) и профиль (BFF, `authUserId`) — разные сущности с разными
+  id:
+  - **Новая** — двухшаговый сценарий: сначала `POST /auth/users/create`
+    (сервис аутентификации, не BFF; принимает `userName`+`password`+`email`,
+    все три обязательны — эндпоинт и контракт), и только при успехе —
+    `POST /bff/users` с `authUserId` из ответа. Контракт запроса на регистрацию
+    не задокументирован отдельно — сделан по аналогии с `LoginRequest`/
+    `CurrentUser`; при расхождении с реальным API правится только
+    `RegisterRequest` (`core/auth/types.ts`) и `authApi.register`
+    (`core/auth/authApi.ts`), вызывается из одного места.
+  - **Существующая** — шаг регистрации пропускается, `authUserId` вводится
+    вручную (поле «ID учётной записи») и уходит прямо в `POST /bff/users`.
 - Редактирование пользователя (`UsersPanel.tsx` → `UserEditForm.tsx` →
   `hooks/useUpdateUser.ts`) — клик по «Изменить» в строке списка переключает
   панель из режима «добавить» в режим «редактировать» этого пользователя.
@@ -86,9 +93,17 @@ TypeScript не подключался вообще. Все три файла/п
 - Профиль пользователя (`widgets/header/AppHeader.tsx` → `features/auth/UserMenu.tsx`)
   — аватар в шапке стал кликабельной кнопкой, по клику рядом с ней открывается
   попап с `userName`/`email` текущего юзера (`authStore.user`) и кнопкой
-  «Выйти» (`authStore.logout()` — раньше нигде в UI не вызывался). Закрытие по
-  клику вне попапа/Esc вынесено в общий хук `shared/hooks/useDismiss.ts`
-  (реиспользуем для любого будущего dropdown/popover, не только этого).
+  «Выйти» (раньше нигде в UI не вызывался). Закрытие по клику вне попапа/Esc
+  вынесено в общий хук `shared/hooks/useDismiss.ts` (реиспользуем для любого
+  будущего dropdown/popover, не только этого).
+- **Logout без бэкенд-ручки.** На бэкенде нет `/auth/logout` — `authStore.logout()`
+  чистит куки на фронте (`core/auth/clearAllCookies.ts`) и уходит на `/login`,
+  без HTTP-запроса. Важная оговорка прямо в этом файле: если кука с токеном
+  `HttpOnly` (а по `docs/FRONTEND_INTEGRATION.md` §2 это так) — JS её в
+  принципе не видит и не может стереть; такой logout чистит то, что вообще
+  доступно фронту, и сбрасывает состояние приложения, но сама HttpOnly-кука
+  протухнет только по её собственному сроку жизни (или когда на бэкенде
+  появится настоящая ручка логаута, отдающая `Set-Cookie` с истёкшим сроком).
 
 ## Структура директорий
 
@@ -110,8 +125,9 @@ src/
 │   │   └── endpoints.ts        # строки путей backend
 │   ├── auth/
 │   │   ├── types.ts
-│   │   ├── authApi.ts           # HTTP-обёртка над /auth/*
-│   │   └── authEvents.ts        # pub/sub для "случился 401"
+│   │   ├── authApi.ts           # HTTP-обёртка над /auth/* (login/register/me — logout нет)
+│   │   ├── authEvents.ts        # pub/sub для "случился 401"
+│   │   └── clearAllCookies.ts    # используется в authStore.logout()
 │   ├── routing/navigation.ts    # navigate() вне React-дерева
 │   ├── errors/
 │   │   ├── httpError.ts          # classifyError(): по HTTP-статусу (generic/tf-auth)

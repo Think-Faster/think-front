@@ -2,16 +2,25 @@ import { ChangeEvent, FormEvent, useState } from 'react';
 
 import { usePermission } from '../../core/permissions/permissionService';
 import Button from '../../shared/ui/Button';
+import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
 import EmptyState from '../../shared/ui/EmptyState';
 import { UserListItem } from '../../entities/user/types';
-import { useCreateUser } from './hooks/useCreateUser';
+import { CreateUserInput, useCreateUser } from './hooks/useCreateUser';
 import { useUsers } from './hooks/useUsers';
 import UserEditForm from './UserEditForm';
+
+type AccountSource = 'new' | 'existing';
+
+const accountSourceOptions: { value: AccountSource; label: string }[] = [
+  { value: 'new', label: 'Новая учётная запись' },
+  { value: 'existing', label: 'Существующая учётная запись' },
+];
 
 const emptyForm = {
   userName: '',
   password: '',
   email: '',
+  authUserId: '',
   lastName: '',
   firstName: '',
   middleName: '',
@@ -23,6 +32,7 @@ export default function UsersPanel() {
   const canCreate = usePermission('users', 'create');
   const canEdit = usePermission('users', 'update');
 
+  const [accountSource, setAccountSource] = useState<AccountSource>('new');
   const [form, setForm] = useState(emptyForm);
   const [editingUser, setEditingUser] = useState<UserListItem | null>(null);
 
@@ -34,7 +44,26 @@ export default function UsersPanel() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
-    const created = await createUser(form);
+    const input: CreateUserInput =
+      accountSource === 'new'
+        ? {
+            accountSource: 'new',
+            userName: form.userName,
+            password: form.password,
+            email: form.email,
+            lastName: form.lastName,
+            firstName: form.firstName,
+            middleName: form.middleName,
+          }
+        : {
+            accountSource: 'existing',
+            authUserId: form.authUserId,
+            lastName: form.lastName,
+            firstName: form.firstName,
+            middleName: form.middleName,
+          };
+
+    const created = await createUser(input);
     if (created) {
       setForm(emptyForm);
       reload();
@@ -86,41 +115,65 @@ export default function UsersPanel() {
           <>
             <p className="pd-section-title">Добавить пользователя</p>
 
+            <div className="win-toolbar">
+              <ChipFilterGroup
+                options={accountSourceOptions}
+                value={accountSource}
+                onChange={setAccountSource}
+              />
+            </div>
+
             <form className="login-form" onSubmit={handleSubmit}>
-              <label>
-                Логин
-                <input
-                  value={form.userName}
-                  onChange={setField('userName')}
-                  autoComplete="off"
-                  disabled={creating}
-                  required
-                />
-              </label>
+              {accountSource === 'new' ? (
+                <>
+                  <label>
+                    Логин
+                    <input
+                      value={form.userName}
+                      onChange={setField('userName')}
+                      autoComplete="off"
+                      disabled={creating}
+                      required
+                    />
+                  </label>
 
-              <label>
-                Email
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={setField('email')}
-                  autoComplete="off"
-                  disabled={creating}
-                  required
-                />
-              </label>
+                  <label>
+                    Email
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={setField('email')}
+                      autoComplete="off"
+                      disabled={creating}
+                      required
+                    />
+                  </label>
 
-              <label>
-                Пароль
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={setField('password')}
-                  autoComplete="new-password"
-                  disabled={creating}
-                  required
-                />
-              </label>
+                  <label>
+                    Пароль
+                    <input
+                      type="password"
+                      value={form.password}
+                      onChange={setField('password')}
+                      autoComplete="new-password"
+                      disabled={creating}
+                      required
+                    />
+                  </label>
+                </>
+              ) : (
+                <label>
+                  ID учётной записи
+                  <input
+                    value={form.authUserId}
+                    onChange={setField('authUserId')}
+                    placeholder="uuid из сервиса аутентификации"
+                    autoComplete="off"
+                    disabled={creating}
+                    required
+                  />
+                </label>
+              )}
 
               <label>
                 Фамилия

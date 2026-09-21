@@ -16,9 +16,9 @@ export default function UserMenu({ initials }: UserMenuProps) {
 
   useDismiss(containerRef, () => setOpen(false), open);
 
-  async function handleLogout() {
+  function handleLogout() {
     setOpen(false);
-    await logout();
+    logout();
   }
 
   return (
