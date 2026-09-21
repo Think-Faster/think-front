@@ -1,6 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
 
-import { can } from '../../core/permissions/permissionService';
 import Badge from '../../shared/ui/Badge';
 import Button from '../../shared/ui/Button';
 import EmptyState from '../../shared/ui/EmptyState';
@@ -58,7 +57,11 @@ export default function PredictionDetailWindow() {
         <div className="txt">{prediction.recommendation}</div>
       </div>
 
-      {prediction.status === 'new' && can('predictions', 'update') && (
+      {/* predictions is a local mock entity, not a registered BFF resource
+          (docs/FRONTEND_INTEGRATION.md §4 lists users/groups/permissions
+          only) — gating this on can()/usePermission() would hide the
+          buttons for every real user once /permissions/me is live. */}
+      {prediction.status === 'new' && (
         <div className="pd-actions">
           <Button onClick={() => reject('Ошибка датчика')}>Отклонить</Button>
           <Button variant="primary" onClick={accept}>

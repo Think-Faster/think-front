@@ -40,6 +40,36 @@
 запускался. Также отсутствовал `tsconfig.json` и `@types/react-dom` — без них
 TypeScript не подключался вообще. Все три файла/пакета добавлены.
 
+### Интеграция с BFF (docs/FRONTEND_INTEGRATION.md)
+
+Добавлены первые сущности, реально ходящие в BFF (`think-bff`), а не в
+локальные моки:
+
+- `entities/user`, `entities/group` — репозитории поверх `GET/POST /bff/users`
+  и `GET/POST /bff/groups` (список + создание; редактирование/удаление/
+  членство в группах пока не реализованы — не были нужны для этой задачи).
+- `core/permissions/permissionsApi.ts` + `stores/permissions/permissionsStore.ts`
+  — реальный `GET /permissions/me`, с фолбэком на мок-карту прав, пока BFF не
+  поднят локально (см. раздел «Обработка ошибок и permissions» ниже).
+- `core/errors/bffError.ts` — разбор ответа BFF `{ code, message, details }`
+  (отдельно от `httpError.ts`, который классифицирует по HTTP-статусу для
+  сервисов, не следующих этому контракту, например `tf-auth`).
+- `features/access/AccessWindow.tsx` — окно «Пользователи и группы» в
+  workspace, с переключением вкладок через переиспользованный
+  `ChipFilterGroup` (`features/users/UsersPanel.tsx` +
+  `features/groups/GroupsPanel.tsx`).
+- Создание пользователя — двухшаговый сценарий
+  (`features/users/hooks/useCreateUser.ts`): сначала
+  `POST /api/auth/register` (сервис аутентификации, не BFF), и только при
+  успехе — `POST /bff/users` с `authUserId` из ответа регистрации. Контракт
+  `/api/auth/register` не описан в доступной документации — сделан по
+  аналогии с `LoginRequest`/`CurrentUser`; при расхождении с реальным API
+  правится только `RegisterRequest` (`core/auth/types.ts`) и
+  `authApi.register` (`core/auth/authApi.ts`), вызывается из одного места.
+- Раздел `permissions` (гранты — кому что выдано) сознательно не получил
+  собственного окна/CRUD — по BFF-доку это связывающая сущность, нужная
+  позже, когда права будут вешаться на пользователей и группы из UI.
+
 ## Структура директорий
 
 ```text
@@ -63,29 +93,47 @@ src/
 │   │   ├── authApi.ts           # HTTP-обёртка над /auth/*
 │   │   └── authEvents.ts        # pub/sub для "случился 401"
 │   ├── routing/navigation.ts    # navigate() вне React-дерева
-│   ├── errors/httpError.ts      # classifyError(): 400/401/403/404/409/422/429/5xx/network
-│   ├── permissions/permissionService.ts  # can(resource, action)
+│   ├── errors/
+│   │   ├── httpError.ts          # classifyError(): по HTTP-статусу (generic/tf-auth)
+│   │   └── bffError.ts            # parseBffError()/formatBffErrorMessage(): по { code, message, details } от BFF
+│   ├── permissions/
+│   │   ├── permissionService.ts   # can()/usePermission()(resource, action)
+│   │   └── permissionsApi.ts      # GET /bff/permissions/me
 │   ├── registry/windowRegistry.ts        # id → { component, defaultView, title }
 │   └── workspace/workspaceUrlSerializer.ts
 │
 ├── entities/                # доменные сущности: тип + данные + repository
-│   └── prediction/
+│   ├── prediction/
+│   │   ├── types.ts
+│   │   ├── mockData.ts
+│   │   └── predictionRepository.ts    # мок (in-memory), пока нет BFF-эндпоинта
+│   ├── user/
+│   │   ├── types.ts
+│   │   └── userRepository.ts          # GET/POST /bff/users
+│   └── group/
 │       ├── types.ts
-│       ├── mockData.ts
-│       └── predictionRepository.ts
+│       └── groupRepository.ts         # GET/POST /bff/groups
 │
 ├── stores/                  # Zustand — только client state
 │   ├── auth/authStore.ts
-│   └── workspace/windowsStore.ts
+│   ├── workspace/windowsStore.ts
+│   └── permissions/permissionsStore.ts  # карта "ресурс → права", мок-фолбэк
 │
 ├── features/                # пользовательские сценарии поверх entities
 │   ├── auth/LoginForm.tsx
-│   └── predictions/
-│       ├── PredictionQueueWindow.tsx
-│       ├── PredictionDetailWindow.tsx
-│       ├── PredictionFilters.tsx
-│       ├── predictionLabels.ts
-│       └── hooks/{usePredictions,usePrediction}.ts
+│   ├── predictions/
+│   │   ├── PredictionQueueWindow.tsx
+│   │   ├── PredictionDetailWindow.tsx
+│   │   ├── PredictionFilters.tsx
+│   │   ├── predictionLabels.ts
+│   │   └── hooks/{usePredictions,usePrediction}.ts
+│   ├── users/
+│   │   ├── UsersPanel.tsx              # список + форма создания
+│   │   └── hooks/{useUsers,useCreateUser}.ts
+│   ├── groups/
+│   │   ├── GroupsPanel.tsx
+│   │   └── hooks/{useGroups,useCreateGroup}.ts
+│   └── access/AccessWindow.tsx          # окно workspace: вкладки Users/Groups
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
 │   ├── workspace/{WorkspaceCanvas,WindowToolbar,useWorkspaceUrlSync}
@@ -325,20 +373,45 @@ export const useNotificationsStore = create<NotificationsState>(set => ({
 
 ## Обработка ошибок и permissions
 
-- Любая ошибка HTTP-запроса классифицируется через
-  `core/errors/httpError.ts` → `classifyError(error)`. Не разбирать
-  `error.response.status` вручную в компонентах — см. пример в
-  `features/auth/LoginForm.tsx`.
+- Есть два классификатора ошибок — не путать:
+  - `core/errors/httpError.ts` → `classifyError(error)` — общий, по HTTP-статусу.
+    Годится для всего, что не гарантированно отвечает BFF-контрактом (например
+    `tf-auth`, см. `features/auth/LoginForm.tsx`).
+  - `core/errors/bffError.ts` → `parseBffError(error)` /
+    `formatBffErrorMessage(error, fallback)` — для любого вызова через BFF.
+    Читает `{ code, message, details }` из тела ответа (см.
+    `docs/FRONTEND_INTEGRATION.md` §3), а не гадает по статусу — `403` там
+    означает три разных вещи (`user_not_provisioned` / `user_inactive` /
+    `permission_denied`), и это различие теряется, если смотреть только на
+    HTTP-код. Пример использования — `features/users/hooks/useUsers.ts`.
 - 401 не обрабатывается в компонентах вообще — это происходит централизованно
   в `core/api/client.ts` → `authEvents` → `authStore.handleUnauthorized()` →
-  редирект на `/login` через `core/routing/navigation.ts`.
+  редирект на `/login` через `core/routing/navigation.ts`. Это верно для всех
+  трёх auth-кодов 401 (`unauthenticated`/`invalid_token`/`token_refresh_failed`)
+  — все три требуют одного и того же действия (на логин), поэтому клиент
+  реагирует на сам HTTP-статус, а не парсит `code`.
 - Проверка прав — через `core/permissions/permissionService.ts`:
-  `can(resource, action)`. Сейчас это заглушка (`return true`), потому что
-  RBAC на бэкенде ещё не реализован — но все точки, где логически нужна
-  проверка прав (см. использование в `PredictionDetailWindow.tsx`), уже
-  проходят через эту функцию. Когда появится реальный RBAC от BFF, меняется
-  только тело `can()` (например, читает `authStore.user.permissions`) — вызовы
-  в фичах не трогаются.
+  - `usePermission(resource, action)` — хук, для использования внутри
+    компонентов (подписывается на `permissionsStore`, перерисовывает UI, когда
+    реальные права придут с бэкенда);
+  - `can(resource, action)` — то же самое, но не-реактивно (вне рендера:
+    обработчики событий, guard-функции).
+
+  Карта прав грузится через `stores/permissions/permissionsStore.ts` →
+  `GET /permissions/me` сразу после успешной авторизации (см.
+  `authStore.initialize()`/`authStore.login()`). Пока BFF недоступен (или во
+  время локального тестирования без бэкенда) — используется мок-карта прямо в
+  `permissionsStore.ts`, поведение осталось прежним ("пока тестируем — держим
+  моки"), но как только `/permissions/me` отвечает успешно, реальная карта её
+  заменяет.
+
+  **Важно:** `can()`/`usePermission()` имеет смысл только для ресурсов,
+  реально зарегистрированных в BFF (`users`, `groups`, `permissions`, и то,
+  что заведено через `POST /resources`). Гейтить локальные mock-сущности
+  (как раньше `predictions`) через эту функцию нельзя — как только придёт
+  настоящая карта прав, в ней просто не будет такого ключа, и UI молча
+  спрячет то, что не должно быть спрятано. `predictions` сейчас ничем не
+  гейтится по этой причине.
 
 ---
 
@@ -358,8 +431,10 @@ export const config = {
 
 Не хардкодить `/api/...` в компонентах или repository — базовый URL берётся
 из `config.apiBaseUrl` (уже зашит в `core/api/client.ts`), а конкретные пути
-собираются в `core/api/endpoints.ts` (для auth) или прямо в repository для
-остальных сущностей, пока их немного.
+собираются в `core/api/endpoints.ts`. BFF сидит за тем же nginx под
+`/api/bff/*` (см. `docs/FRONTEND_INTEGRATION.md` §1) — поэтому это тот же
+`apiClient` с `baseURL: '/api'`, просто пути в `endpoints.bff.*` уже содержат
+префикс `/bff/...`, второй axios-инстанс не нужен.
 
 ---
 
@@ -377,8 +452,16 @@ export const config = {
   Когда появится второй маршрут верхнего уровня со своим набором прав и
   своим меню (не окно внутри workspace, а отдельная страница), стоит завести
   `core/registry/sectionRegistry.ts` по аналогии с `windowRegistry.ts`.
-- **RBAC не проверяется по-настоящему** — `can()` всегда возвращает `true`.
-  Это осознанная заглушка, а не забытая доработка.
+- **Нет UI для грантов (`/permissions/grants`) и ресурсов (`/resources`).**
+  По BFF-доку `permissions` — связывающая сущность (принципал × ресурс →
+  права), собственного раздела ей не нужно; UI для выдачи прав
+  пользователям/группам — следующий шаг, когда до этого дойдёт очередь.
+  `GET /permissions/me` уже используется (гейтинг), остальные
+  `/permissions/*` и `/resources` — нет.
+- **Нет редактирования/удаления/управления членством для users и groups.**
+  Реализовано только то, что было нужно: список + создание. `PUT/DELETE
+  /users/{id}`, работа с группами пользователя, `/groups/{id}/members*` —
+  не реализованы, хотя BFF их отдаёт (см. `docs/FRONTEND_INTEGRATION.md` §6).
 - **Нет React Query.** Хуки фич (`usePredictions`, `usePrediction`) сделаны
   вручную поверх repository. Добавлять React Query стоит, когда появится
   реальная надобность в кэшировании/инвалидации между независимыми частями
