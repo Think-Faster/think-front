@@ -62,15 +62,22 @@ TypeScript не подключался вообще. Все три файла/п
   workspace, с переключением вкладок через переиспользованный
   `ChipFilterGroup` (`features/users/UsersPanel.tsx` +
   `features/groups/GroupsPanel.tsx`).
-- Создание пользователя — двухшаговый сценарий
-  (`features/users/hooks/useCreateUser.ts`): сначала
-  `POST /api/auth/register` (сервис аутентификации, не BFF; принимает
-  `userName`+`password`+`email`, все три обязательны), и только при успехе —
-  `POST /bff/users` с `authUserId` из ответа регистрации. Контракт
-  `/api/auth/register` не описан в доступной документации — сделан по
-  аналогии с `LoginRequest`/`CurrentUser`; при расхождении с реальным API
-  правится только `RegisterRequest` (`core/auth/types.ts`) и
-  `authApi.register` (`core/auth/authApi.ts`), вызывается из одного места.
+- Создание пользователя — два независимых источника учётки, переключатель
+  в форме («Новая учётная запись» / «Существующая учётная запись», см.
+  `UsersPanel.tsx`, тип `CreateUserInput` в
+  `features/users/hooks/useCreateUser.ts`), потому что учётка (сервис
+  аутентификации) и профиль (BFF, `authUserId`) — разные сущности с разными
+  id:
+  - **Новая** — двухшаговый сценарий: сначала `POST /auth/users/create`
+    (сервис аутентификации, не BFF; принимает `userName`+`password`+`email`,
+    все три обязательны — эндпоинт и контракт), и только при успехе —
+    `POST /bff/users` с `authUserId` из ответа. Контракт запроса на регистрацию
+    не задокументирован отдельно — сделан по аналогии с `LoginRequest`/
+    `CurrentUser`; при расхождении с реальным API правится только
+    `RegisterRequest` (`core/auth/types.ts`) и `authApi.register`
+    (`core/auth/authApi.ts`), вызывается из одного места.
+  - **Существующая** — шаг регистрации пропускается, `authUserId` вводится
+    вручную (поле «ID учётной записи») и уходит прямо в `POST /bff/users`.
 - Редактирование пользователя (`UsersPanel.tsx` → `UserEditForm.tsx` →
   `hooks/useUpdateUser.ts`) — клик по «Изменить» в строке списка переключает
   панель из режима «добавить» в режим «редактировать» этого пользователя.
