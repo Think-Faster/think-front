@@ -330,11 +330,18 @@ header {
 }
 
 .user-menu-id {
+  margin-bottom: 8px;
+}
+
+.user-menu-id .obj-field-label {
+  margin-top: 0;
+  margin-bottom: 2px;
+}
+
+.user-menu-id-value {
   font-size: 10.5px;
 
   color: var(--text-faint);
-
-  margin-bottom: 4px;
 
   word-break: break-all;
 }
@@ -1547,6 +1554,94 @@ button.queue-item {
     monospace;
 
   font-size: 10.5px;
+}
+
+/* =========================
+   GRANT TABLE
+========================= */
+
+.grant-section {
+  border-bottom: 1px solid var(--border);
+}
+
+.grant-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  width: 100%;
+
+  padding: 10px 0;
+
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+
+  text-align: left;
+  cursor: pointer;
+}
+
+.grant-summary {
+  flex: 1;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  color: var(--text-faint);
+
+  font-size: 11.5px;
+}
+
+.grant-table-wrap {
+  overflow-x: auto;
+
+  margin-bottom: 14px;
+}
+
+.grant-table {
+  width: 100%;
+
+  border-collapse: collapse;
+
+  font-size: 11.5px;
+}
+
+.grant-table th,
+.grant-table td {
+  padding: 6px 8px;
+
+  border-bottom: 1px solid var(--border);
+
+  text-align: center;
+  white-space: nowrap;
+}
+
+.grant-table th:first-child,
+.grant-table td:first-child {
+  text-align: left;
+}
+
+.grant-table th {
+  color: var(--text-faint);
+  font-weight: 600;
+  font-size: 10.5px;
+}
+
+.grant-new-row {
+  display: flex;
+  gap: 6px;
+}
+
+.grant-new-row select {
+  padding: 4px 6px;
+
+  border-radius: 5px;
+  border: 1px solid var(--border-strong);
+
+  background: var(--bg);
+  color: var(--text);
 }
 
 /* =========================
