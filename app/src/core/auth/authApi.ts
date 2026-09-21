@@ -26,7 +26,6 @@ export const authApi = {
     return response.data;
   },
 
-  async logout(): Promise<void> {
-    await apiClient.post(endpoints.auth.logout);
-  },
+  // Нет ручки логаута на бэкенде — выход делается на фронте: см.
+  // stores/auth/authStore.ts (clearAllCookies + сброс состояния).
 };
