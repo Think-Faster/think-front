@@ -14,8 +14,9 @@ export interface LoginRequest {
 // ответственности tf-auth, не BFF). Сделано по аналогии с LoginRequest —
 // если у tf-auth другой набор полей, поменять нужно только этот тип и
 // authApi.register (core/auth/authApi.ts), вызывается из одного места —
-// features/users/hooks/useCreateUser.ts.
+// features/users/hooks/useCreateUser.ts. email обязателен — подтверждено.
 export interface RegisterRequest {
   userName: string;
   password: string;
+  email: string;
 }

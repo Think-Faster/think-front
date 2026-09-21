@@ -24,3 +24,12 @@ export interface CreateUserRequest {
   middleName?: string | null;
   groupIds?: string[];
 }
+
+// groupIds сюда не входит — состав групп меняется отдельными эндпоинтами
+// (см. entities/group/groupRepository.ts: addMember/removeMember).
+export interface UpdateUserRequest {
+  lastName: string;
+  firstName: string;
+  middleName?: string | null;
+  isActive: boolean;
+}
