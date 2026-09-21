@@ -83,6 +83,12 @@ TypeScript не подключался вообще. Все три файла/п
 - Раздел `permissions` (гранты — кому что выдано) сознательно не получил
   собственного окна/CRUD — по BFF-доку это связывающая сущность, нужная
   позже, когда права будут вешаться на пользователей и группы из UI.
+- Профиль пользователя (`widgets/header/AppHeader.tsx` → `features/auth/UserMenu.tsx`)
+  — аватар в шапке стал кликабельной кнопкой, по клику рядом с ней открывается
+  попап с `userName`/`email` текущего юзера (`authStore.user`) и кнопкой
+  «Выйти» (`authStore.logout()` — раньше нигде в UI не вызывался). Закрытие по
+  клику вне попапа/Esc вынесено в общий хук `shared/hooks/useDismiss.ts`
+  (реиспользуем для любого будущего dropdown/popover, не только этого).
 
 ## Структура директорий
 
@@ -134,7 +140,7 @@ src/
 │   └── permissions/permissionsStore.ts  # карта "ресурс → права", мок-фолбэк
 │
 ├── features/                # пользовательские сценарии поверх entities
-│   ├── auth/LoginForm.tsx
+│   ├── auth/{LoginForm,UserMenu}.tsx
 │   ├── predictions/
 │   │   ├── PredictionQueueWindow.tsx
 │   │   ├── PredictionDetailWindow.tsx
@@ -164,7 +170,7 @@ src/
 ├── shared/                  # ничего не знает про backend-сущности
 │   ├── ui/{Button,Badge,ChipFilterGroup,ProgressBar,StatChip,Tag,
 │   │        SensorRow,Breadcrumb,Window,EmptyState}.tsx
-│   └── hooks/{useInterval,useClock}.ts
+│   └── hooks/{useInterval,useClock,useDismiss}.ts
 │
 └── pages/                   # тонкие точки для роутов
     ├── LoginPage.tsx

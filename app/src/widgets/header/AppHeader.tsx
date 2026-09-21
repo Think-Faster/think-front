@@ -1,3 +1,4 @@
+import UserMenu from '../../features/auth/UserMenu';
 import { useClock } from '../../shared/hooks/useClock';
 import Breadcrumb, { BreadcrumbItem } from '../../shared/ui/Breadcrumb';
 import StatChip from '../../shared/ui/StatChip';
@@ -63,7 +64,7 @@ export default function AppHeader({
             {notificationsCount > 0 && <span className="dot">{notificationsCount}</span>}
           </div>
 
-          <div className="avatar">{userInitials}</div>
+          <UserMenu initials={userInitials} />
         </div>
       </div>
 
