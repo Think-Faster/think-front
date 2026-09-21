@@ -2,6 +2,7 @@ import { ComponentType } from 'react';
 
 import { hasPermission, PermissionAction } from '../permissions/permissionService';
 import AccessWindow from '../../features/access/AccessWindow';
+import ConfigWindow from '../../features/config/ConfigWindow';
 import PredictionDetailWindow from '../../features/predictions/PredictionDetailWindow';
 import PredictionQueueWindow from '../../features/predictions/PredictionQueueWindow';
 import ActionLogWidget from '../../widgets/actionLog/ActionLogWidget';
@@ -109,5 +110,12 @@ export const windowRegistry: WindowDefinition[] = [
       { resource: 'users', action: 'read' },
       { resource: 'groups', action: 'read' },
     ],
+  },
+  {
+    id: 'config',
+    title: 'Конфигурация доступа',
+    component: ConfigWindow,
+    defaultView: { x: 336, y: 466, width: 480, height: 460, open: false, z: 19 },
+    requiredPermission: [{ resource: 'permissions', action: 'manage' }],
   },
 ];

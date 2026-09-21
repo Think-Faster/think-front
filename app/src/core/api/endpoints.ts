@@ -20,6 +20,11 @@ export const endpoints = {
       memberById: (id: string, memberType: 'user' | 'group', memberId: string) =>
         `/bff/groups/${id}/members/${memberType}/${memberId}`,
     },
-    permissionsMe: '/bff/permissions/me',
+    resources: '/bff/resources',
+    permissions: {
+      me: '/bff/permissions/me',
+      grants: '/bff/permissions/grants',
+      grantById: (id: string) => `/bff/permissions/grants/${id}`,
+    },
   },
 } as const;

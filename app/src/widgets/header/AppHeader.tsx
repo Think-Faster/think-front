@@ -14,7 +14,6 @@ interface AppHeaderProps {
   crumbs?: BreadcrumbItem[];
   shiftLabel?: string;
   notificationsCount?: number;
-  userInitials?: string;
   stats?: HeaderStat[];
 }
 
@@ -38,7 +37,6 @@ export default function AppHeader({
   crumbs = defaultCrumbs,
   shiftLabel = 'Диспетчер · смена Б',
   notificationsCount = 3,
-  userInitials = 'ДВ',
   stats = defaultStats,
 }: AppHeaderProps) {
   const clock = useClock();
@@ -64,7 +62,7 @@ export default function AppHeader({
             {notificationsCount > 0 && <span className="dot">{notificationsCount}</span>}
           </div>
 
-          <UserMenu initials={userInitials} />
+          <UserMenu />
         </div>
       </div>
 

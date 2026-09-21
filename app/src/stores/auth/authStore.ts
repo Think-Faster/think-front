@@ -6,6 +6,7 @@ import { clearAllCookies } from '../../core/auth/clearAllCookies';
 import { CurrentUser, LoginRequest } from '../../core/auth/types';
 import { redirectToLogin } from '../../core/routing/navigation';
 import { usePermissionsStore } from '../permissions/permissionsStore';
+import { useProfileStore } from '../profile/profileStore';
 
 export type AuthStatus = 'unknown' | 'authenticated' | 'unauthenticated';
 
@@ -27,6 +28,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await authApi.getCurrentUser();
       set({ status: 'authenticated', user });
       usePermissionsStore.getState().load();
+      useProfileStore.getState().load(user.id);
     } catch {
       set({ status: 'unauthenticated', user: null });
     }
@@ -36,6 +38,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const user = await authApi.login(request);
     set({ status: 'authenticated', user });
     usePermissionsStore.getState().load();
+    useProfileStore.getState().load(user.id);
   },
 
   // Нет ручки логаута на бэкенде — сносим куки на фронте и уходим на /login.
