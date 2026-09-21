@@ -45,9 +45,13 @@ TypeScript не подключался вообще. Все три файла/п
 Добавлены первые сущности, реально ходящие в BFF (`think-bff`), а не в
 локальные моки:
 
-- `entities/user`, `entities/group` — репозитории поверх `GET/POST /bff/users`
-  и `GET/POST /bff/groups` (список + создание; редактирование/удаление/
-  членство в группах пока не реализованы — не были нужны для этой задачи).
+- `entities/user`, `entities/group` — репозитории поверх BFF:
+  `GET/POST /bff/users`, `PUT /bff/users/{id}` (редактирование — только
+  lastName/firstName/middleName/isActive, состав групп меняется отдельно, как
+  и в BFF-доке); `GET/POST /bff/groups`, `GET /bff/groups/{id}`,
+  `POST /bff/groups/{id}/members`, `DELETE /bff/groups/{id}/members/{type}/{id}`
+  (добавление/удаление участников — и пользователей, и вложенных групп).
+  Удаление пользователя/группы целиком не реализовано — не было в задаче.
 - `core/permissions/permissionsApi.ts` + `stores/permissions/permissionsStore.ts`
   — реальный `GET /permissions/me`, с фолбэком на мок-карту прав, пока BFF не
   поднят локально (см. раздел «Обработка ошибок и permissions» ниже).
@@ -60,12 +64,22 @@ TypeScript не подключался вообще. Все три файла/п
   `features/groups/GroupsPanel.tsx`).
 - Создание пользователя — двухшаговый сценарий
   (`features/users/hooks/useCreateUser.ts`): сначала
-  `POST /api/auth/register` (сервис аутентификации, не BFF), и только при
-  успехе — `POST /bff/users` с `authUserId` из ответа регистрации. Контракт
+  `POST /api/auth/register` (сервис аутентификации, не BFF; принимает
+  `userName`+`password`+`email`, все три обязательны), и только при успехе —
+  `POST /bff/users` с `authUserId` из ответа регистрации. Контракт
   `/api/auth/register` не описан в доступной документации — сделан по
   аналогии с `LoginRequest`/`CurrentUser`; при расхождении с реальным API
   правится только `RegisterRequest` (`core/auth/types.ts`) и
   `authApi.register` (`core/auth/authApi.ts`), вызывается из одного места.
+- Редактирование пользователя (`UsersPanel.tsx` → `UserEditForm.tsx` →
+  `hooks/useUpdateUser.ts`) — клик по «Изменить» в строке списка переключает
+  панель из режима «добавить» в режим «редактировать» этого пользователя.
+- Управление составом группы (`GroupsPanel.tsx` → `GroupMembersEditor.tsx` →
+  `hooks/useGroupMembers.ts`) — клик по группе в списке (стилизован через
+  переиспользованный `.queue-item`, см. ниже) подгружает её полную карточку
+  (`GET /groups/{id}`, с участниками) и показывает два независимых поля для
+  добавления участника — «Пользователь» и «Группа» (вложенность), плюс кнопку
+  убрать у каждого уже добавленного участника.
 - Раздел `permissions` (гранты — кому что выдано) сознательно не получил
   собственного окна/CRUD — по BFF-доку это связывающая сущность, нужная
   позже, когда права будут вешаться на пользователей и группы из UI.
@@ -109,10 +123,10 @@ src/
 │   │   └── predictionRepository.ts    # мок (in-memory), пока нет BFF-эндпоинта
 │   ├── user/
 │   │   ├── types.ts
-│   │   └── userRepository.ts          # GET/POST /bff/users
+│   │   └── userRepository.ts          # GET/POST/PUT /bff/users[/{id}]
 │   └── group/
 │       ├── types.ts
-│       └── groupRepository.ts         # GET/POST /bff/groups
+│       └── groupRepository.ts         # GET/POST /bff/groups, members add/remove
 │
 ├── stores/                  # Zustand — только client state
 │   ├── auth/authStore.ts
@@ -128,11 +142,13 @@ src/
 │   │   ├── predictionLabels.ts
 │   │   └── hooks/{usePredictions,usePrediction}.ts
 │   ├── users/
-│   │   ├── UsersPanel.tsx              # список + форма создания
-│   │   └── hooks/{useUsers,useCreateUser}.ts
+│   │   ├── UsersPanel.tsx              # список + форма создания/редактирования
+│   │   ├── UserEditForm.tsx
+│   │   └── hooks/{useUsers,useCreateUser,useUpdateUser}.ts
 │   ├── groups/
-│   │   ├── GroupsPanel.tsx
-│   │   └── hooks/{useGroups,useCreateGroup}.ts
+│   │   ├── GroupsPanel.tsx              # список + форма создания
+│   │   ├── GroupMembersEditor.tsx        # участники выбранной группы: добавить/убрать
+│   │   └── hooks/{useGroups,useCreateGroup,useGroupMembers}.ts
 │   └── access/AccessWindow.tsx          # окно workspace: вкладки Users/Groups
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
@@ -458,10 +474,10 @@ export const config = {
   пользователям/группам — следующий шаг, когда до этого дойдёт очередь.
   `GET /permissions/me` уже используется (гейтинг), остальные
   `/permissions/*` и `/resources` — нет.
-- **Нет редактирования/удаления/управления членством для users и groups.**
-  Реализовано только то, что было нужно: список + создание. `PUT/DELETE
-  /users/{id}`, работа с группами пользователя, `/groups/{id}/members*` —
-  не реализованы, хотя BFF их отдаёт (см. `docs/FRONTEND_INTEGRATION.md` §6).
+- **Нет удаления users/groups.** `DELETE /users/{id}`, `DELETE /groups/{id}`
+  не реализованы — не было в задаче. Список, создание, редактирование
+  пользователя и управление составом группы (и пользователи, и вложенные
+  группы) — есть.
 - **Нет React Query.** Хуки фич (`usePredictions`, `usePrediction`) сделаны
   вручную поверх repository. Добавлять React Query стоит, когда появится
   реальная надобность в кэшировании/инвалидации между независимыми частями

@@ -1,8 +1,10 @@
 import { ChangeEvent, FormEvent, useState } from 'react';
 
 import { usePermission } from '../../core/permissions/permissionService';
+import Badge from '../../shared/ui/Badge';
 import Button from '../../shared/ui/Button';
 import EmptyState from '../../shared/ui/EmptyState';
+import GroupMembersEditor from './GroupMembersEditor';
 import { useCreateGroup } from './hooks/useCreateGroup';
 import { useGroups } from './hooks/useGroups';
 
@@ -14,6 +16,7 @@ export default function GroupsPanel() {
   const canCreate = usePermission('groups', 'create');
 
   const [form, setForm] = useState(emptyForm);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   function setField(field: keyof typeof emptyForm) {
     return (event: ChangeEvent<HTMLInputElement>) =>
@@ -39,14 +42,21 @@ export default function GroupsPanel() {
       {!loading && !error && groups.length === 0 && <EmptyState>Групп пока нет</EmptyState>}
 
       {groups.map(group => (
-        <div className="hist-item" key={group.id}>
-          <span>
-            {group.name} <span className="mono">({group.code})</span>
-          </span>
+        <button
+          key={group.id}
+          className={`queue-item ${selectedGroupId === group.id ? 'active' : ''}`}
+          onClick={() => setSelectedGroupId(current => (current === group.id ? null : group.id))}
+        >
+          <div className="queue-top">
+            <span className="queue-obj">{group.name}</span>
+            {group.isSystem && <Badge tone="low">системная</Badge>}
+          </div>
 
-          <span className="d">{group.isSystem ? 'системная' : ''}</span>
-        </div>
+          <div className="queue-meta mono">{group.code}</div>
+        </button>
       ))}
+
+      {selectedGroupId && <GroupMembersEditor groupId={selectedGroupId} />}
 
       {canCreate && (
         <>

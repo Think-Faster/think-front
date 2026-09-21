@@ -625,6 +625,18 @@ header {
   opacity: 0.45;
 }
 
+/* .queue-item is normally a <Link>; this reset lets it double as a plain
+   <button> row (e.g. a selectable list item) without native button chrome. */
+button.queue-item {
+  width: 100%;
+
+  border: none;
+  background: none;
+
+  text-align: left;
+  font: inherit;
+}
+
 .queue-top {
   display: flex;
   justify-content: space-between;
@@ -1619,7 +1631,8 @@ header {
   color: var(--text-dim);
 }
 
-.login-form input {
+.login-form input,
+.login-form select {
   width: 100%;
 
   padding: 10px 11px;
@@ -1636,7 +1649,8 @@ header {
   outline: none;
 }
 
-.login-form input:focus {
+.login-form input:focus,
+.login-form select:focus {
   border-color: var(--cyan);
 }
 

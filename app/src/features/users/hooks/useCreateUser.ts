@@ -8,6 +8,7 @@ import { User } from '../../../entities/user/types';
 export interface CreateUserInput {
   userName: string;
   password: string;
+  email: string;
   lastName: string;
   firstName: string;
   middleName: string;
@@ -28,6 +29,7 @@ export function useCreateUser() {
       const account = await authApi.register({
         userName: input.userName,
         password: input.password,
+        email: input.email,
       });
 
       authUserId = account.id;
