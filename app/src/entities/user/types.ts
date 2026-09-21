@@ -32,4 +32,5 @@ export interface UpdateUserRequest {
   firstName: string;
   middleName?: string | null;
   isActive: boolean;
+  authUserId: string;
 }

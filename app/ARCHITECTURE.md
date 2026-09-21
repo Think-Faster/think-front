@@ -88,15 +88,36 @@ TypeScript не подключался вообще. Все три файла/п
   (`GET /groups/{id}`, с участниками) и показывает два независимых поля для
   добавления участника — «Пользователь» и «Группа» (вложенность), плюс кнопку
   убрать у каждого уже добавленного участника.
-- Раздел `permissions` (гранты — кому что выдано) сознательно не получил
-  собственного окна/CRUD — по BFF-доку это связывающая сущность, нужная
-  позже, когда права будут вешаться на пользователей и группы из UI.
+- **Окно «Конфигурация доступа»** (`features/config/ConfigWindow.tsx`,
+  registry id `config`) — то, что раньше было сознательно отложено ("права —
+  связывающая сущность, отдельного окна не нужно"): интерфейс для выдачи прав
+  субъектам (пользователям и группам) на существующие сущности. Композиция:
+  - `entities/resource` — `GET /resources` (только чтение — создание новых
+    сущностей через `POST /resources` не реализовано, в задаче не было);
+  - `entities/grant` — `GET/POST /permissions/grants`,
+    `DELETE /permissions/grants/{id}`;
+  - `GrantsList.tsx` — список выданных прав (субъект · сущность · права),
+    «Изменить»/«×» на строку;
+  - `GrantForm.tsx` — тип субъекта (`ChipFilterGroup`) → субъект (select из
+    `useUsers`/`useGroups` — те же хуки, что и в `AccessWindow`) → сущность
+    (select из `useResources`) → права (`shared/ui/ChipToggleGroup.tsx` —
+    множественный аналог `ChipFilterGroup`, тоже поверх `.filter-group`/
+    `.chip-filter`, новый переиспользуемый примитив).
+
+  **Upsert не аддитивный** (см. `docs/FRONTEND_INTEGRATION.md` §7) — если для
+  пары субъект+сущность уже есть грант, «Изменить» подгружает его текущие
+  права в форму, а не начинает с пустого набора, иначе сохранение стёрло бы
+  то, что уже было выдано. Окно видно только при `permissions:manage`
+  (`requiredPermission` в реестре) — это единственное реальное право,
+  дающее смысл всему экрану.
 - Профиль пользователя (`widgets/header/AppHeader.tsx` → `features/auth/UserMenu.tsx`)
   — аватар в шапке стал кликабельной кнопкой, по клику рядом с ней открывается
   попап с `userName`/`email` текущего юзера (`authStore.user`) и кнопкой
   «Выйти» (раньше нигде в UI не вызывался). Закрытие по клику вне попапа/Esc
   вынесено в общий хук `shared/hooks/useDismiss.ts` (реиспользуем для любого
-  будущего dropdown/popover, не только этого).
+  будущего dropdown/popover, не только этого). Инициалы на самой кнопке и оба
+  id в попапе — см. отдельный блок «Учётка vs профиль» ниже, там же
+  объясняется, почему это best-effort, а не гарантированно точное значение.
 - **Logout без бэкенд-ручки.** На бэкенде нет `/auth/logout` — `authStore.logout()`
   чистит куки на фронте (`core/auth/clearAllCookies.ts`) и уходит на `/login`,
   без HTTP-запроса. Важная оговорка прямо в этом файле: если кука с токеном
@@ -105,6 +126,39 @@ TypeScript не подключался вообще. Все три файла/п
   доступно фронту, и сбрасывает состояние приложения, но сама HttpOnly-кука
   протухнет только по её собственному сроку жизни (или когда на бэкенде
   появится настоящая ручка логаута, отдающая `Set-Cookie` с истёкшим сроком).
+
+### Учётка (auth) vs профиль (BFF) — и почему инициалы аватара best-effort
+
+`CurrentUser` (`authStore.user`, из `GET /auth/me`) — это учётка в сервисе
+аутентификации: `{ id, userName, email }`, без ФИО. ФИО (`lastName`/
+`firstName`) есть только у BFF-профиля (`entities/user`), это отдельная
+сущность со своим `id`, связанная с учёткой через `authUserId`.
+
+В BFF нет ручки "мой профиль" — нет способа напрямую спросить "какой
+профиль соответствует моей учётке". `stores/profile/profileStore.ts` решает
+это единственным доступным способом: после успешной авторизации грузит
+`GET /bff/users` и ищет в первой странице список профиль, у которого
+`authUserId === authStore.user.id`. Отсюда два практических следствия:
+
+1. Нужны права `users:read` — если их нет, профиль не находится, это не
+   ошибка, а ожидаемый исход.
+2. Ищем только в первой странице списка (`userRepository.getList()` без
+   пагинации) — в организации с большим числом пользователей свой профиль
+   может туда не попасть.
+
+И то, и другое — не баг, а осознанное ограничение при отсутствии выделенной
+ручки. Всё, что от профиля зависит, рассчитано на его отсутствие:
+
+- **Инициалы на кнопке аватара** (`features/auth/UserMenu.tsx`,
+  `getInitials()`) — первая буква фамилии + первая буква имени из профиля,
+  если он нашёлся; иначе первые два символа `email` из `CurrentUser`.
+- **Попап профиля** — показывает оба id отдельными строками: «ID учётной
+  записи» (`authStore.user.id`) и «ID профиля» (`profileStore.profile.id`,
+  прочерк, если профиль не найден).
+- **Редактирование пользователя** (`UserEditForm.tsx`) — помимо ФИО и
+  `isActive`, можно поменять и сам `authUserId` (поле «ID учётной записи»),
+  то есть перепривязать профиль к другой учётке. `UpdateUserRequest`
+  (`entities/user/types.ts`) соответственно включает `authUserId`.
 
 ## Структура директорий
 
@@ -147,14 +201,21 @@ src/
 │   ├── user/
 │   │   ├── types.ts
 │   │   └── userRepository.ts          # GET/POST/PUT /bff/users[/{id}]
-│   └── group/
+│   ├── group/
+│   │   ├── types.ts
+│   │   └── groupRepository.ts         # GET/POST /bff/groups, members add/remove
+│   ├── resource/
+│   │   ├── types.ts
+│   │   └── resourceRepository.ts      # GET /bff/resources (только чтение)
+│   └── grant/
 │       ├── types.ts
-│       └── groupRepository.ts         # GET/POST /bff/groups, members add/remove
+│       └── grantRepository.ts         # GET/POST /bff/permissions/grants, DELETE .../{id}
 │
 ├── stores/                  # Zustand — только client state
 │   ├── auth/authStore.ts
 │   ├── workspace/windowsStore.ts
-│   └── permissions/permissionsStore.ts  # карта "ресурс → права", мок-фолбэк
+│   ├── permissions/permissionsStore.ts  # карта "ресурс → права", пустая по умолчанию/на ошибке
+│   └── profile/profileStore.ts          # BFF-профиль текущего юзера (best effort, см. раздел выше)
 │
 ├── features/                # пользовательские сценарии поверх entities
 │   ├── auth/{LoginForm,UserMenu}.tsx
@@ -172,7 +233,13 @@ src/
 │   │   ├── GroupsPanel.tsx              # список + форма создания
 │   │   ├── GroupMembersEditor.tsx        # участники выбранной группы: добавить/убрать
 │   │   └── hooks/{useGroups,useCreateGroup,useGroupMembers}.ts
-│   └── access/AccessWindow.tsx          # окно workspace: вкладки Users/Groups
+│   ├── access/AccessWindow.tsx          # окно workspace: вкладки Users/Groups
+│   └── config/
+│       ├── ConfigWindow.tsx              # окно workspace: выдача прав субъектам
+│       ├── GrantsList.tsx
+│       ├── GrantForm.tsx
+│       ├── permissionLabels.ts
+│       └── hooks/{useGrants,useResources,useUpsertGrant}.ts
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
 │   ├── workspace/{WorkspaceCanvas,WindowToolbar,useWorkspaceUrlSync}
@@ -185,8 +252,8 @@ src/
 │   └── actionLog/ActionLogWidget.tsx
 │
 ├── shared/                  # ничего не знает про backend-сущности
-│   ├── ui/{Button,Badge,ChipFilterGroup,ProgressBar,StatChip,Tag,
-│   │        SensorRow,Breadcrumb,Window,EmptyState}.tsx
+│   ├── ui/{Button,Badge,ChipFilterGroup,ChipToggleGroup,ProgressBar,StatChip,
+│   │        Tag,SensorRow,Breadcrumb,Window,EmptyState}.tsx
 │   └── hooks/{useInterval,useClock,useDismiss}.ts
 │
 └── pages/                   # тонкие точки для роутов
@@ -508,16 +575,14 @@ export const config = {
   Когда появится второй маршрут верхнего уровня со своим набором прав и
   своим меню (не окно внутри workspace, а отдельная страница), стоит завести
   `core/registry/sectionRegistry.ts` по аналогии с `windowRegistry.ts`.
-- **Нет UI для грантов (`/permissions/grants`) и ресурсов (`/resources`).**
-  По BFF-доку `permissions` — связывающая сущность (принципал × ресурс →
-  права), собственного раздела ей не нужно; UI для выдачи прав
-  пользователям/группам — следующий шаг, когда до этого дойдёт очередь.
-  `GET /permissions/me` уже используется (гейтинг), остальные
-  `/permissions/*` и `/resources` — нет.
+- **Нет создания новых ресурсов.** `POST /resources` не реализован — окно
+  «Конфигурация доступа» (`features/config`) работает с уже существующими
+  сущностями (`GET /resources`), заводить новые через UI не просили. Сами
+  гранты (`GET/POST /permissions/grants`, `DELETE .../{id}`) — реализованы.
 - **Нет удаления users/groups.** `DELETE /users/{id}`, `DELETE /groups/{id}`
   не реализованы — не было в задаче. Список, создание, редактирование
-  пользователя и управление составом группы (и пользователи, и вложенные
-  группы) — есть.
+  пользователя (включая `authUserId`) и управление составом группы (и
+  пользователи, и вложенные группы) — есть.
 - **Нет React Query.** Хуки фич (`usePredictions`, `usePrediction`) сделаны
   вручную поверх repository. Добавлять React Query стоит, когда появится
   реальная надобность в кэшировании/инвалидации между независимыми частями

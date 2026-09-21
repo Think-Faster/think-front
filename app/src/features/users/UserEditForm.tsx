@@ -17,10 +17,11 @@ export default function UserEditForm({ user, onSaved, onCancel }: UserEditFormPr
     lastName: user.lastName,
     firstName: user.firstName,
     middleName: user.middleName ?? '',
+    authUserId: user.authUserId,
     isActive: user.isActive,
   });
 
-  function setField(field: 'lastName' | 'firstName' | 'middleName') {
+  function setField(field: 'lastName' | 'firstName' | 'middleName' | 'authUserId') {
     return (event: ChangeEvent<HTMLInputElement>) =>
       setForm(current => ({ ...current, [field]: event.target.value }));
   }
@@ -32,6 +33,7 @@ export default function UserEditForm({ user, onSaved, onCancel }: UserEditFormPr
       lastName: form.lastName,
       firstName: form.firstName,
       middleName: form.middleName || null,
+      authUserId: form.authUserId,
       isActive: form.isActive,
     });
 
@@ -55,6 +57,11 @@ export default function UserEditForm({ user, onSaved, onCancel }: UserEditFormPr
       <label>
         Отчество
         <input value={form.middleName} onChange={setField('middleName')} disabled={loading} />
+      </label>
+
+      <label>
+        ID учётной записи
+        <input value={form.authUserId} onChange={setField('authUserId')} disabled={loading} required />
       </label>
 
       <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
