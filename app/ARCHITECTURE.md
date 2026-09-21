@@ -91,25 +91,47 @@ TypeScript не подключался вообще. Все три файла/п
 - **Окно «Конфигурация доступа»** (`features/config/ConfigWindow.tsx`,
   registry id `config`) — то, что раньше было сознательно отложено ("права —
   связывающая сущность, отдельного окна не нужно"): интерфейс для выдачи прав
-  субъектам (пользователям и группам) на существующие сущности. Композиция:
-  - `entities/resource` — `GET /resources` (только чтение — создание новых
-    сущностей через `POST /resources` не реализовано, в задаче не было);
-  - `entities/grant` — `GET/POST /permissions/grants`,
-    `DELETE /permissions/grants/{id}`;
-  - `GrantsList.tsx` — список выданных прав (субъект · сущность · права),
-    «Изменить»/«×» на строку;
-  - `GrantForm.tsx` — тип субъекта (`ChipFilterGroup`) → субъект (select из
-    `useUsers`/`useGroups` — те же хуки, что и в `AccessWindow`) → сущность
-    (select из `useResources`) → права (`shared/ui/ChipToggleGroup.tsx` —
-    множественный аналог `ChipFilterGroup`, тоже поверх `.filter-group`/
-    `.chip-filter`, новый переиспользуемый примитив).
+  субъектам (пользователям и группам) на существующие сущности. Сгруппировано
+  по сущностям, каждая — сворачиваемая секция
+  (`ResourceGrantsSection.tsx`):
 
-  **Upsert не аддитивный** (см. `docs/FRONTEND_INTEGRATION.md` §7) — если для
-  пары субъект+сущность уже есть грант, «Изменить» подгружает его текущие
-  права в форму, а не начинает с пустого набора, иначе сохранение стёрло бы
-  то, что уже было выдано. Окно видно только при `permissions:manage`
-  (`requiredPermission` в реестре) — это единственное реальное право,
-  дающее смысл всему экрану.
+  - **Свёрнуто** — название сущности + через запятую субъекты, у которых
+    есть хоть какие-то права на неё (`нет выданных прав`, если грантов нет).
+  - **Развёрнуто** — таблица: строки = субъекты (текущие гранты на эту
+    сущность), колонки = типы прав (`create/read/.../manage`), на
+    пересечении — чекбокс. Галки можно свободно снимать/ставить прямо в
+    таблице. «Добавить» дописывает пустую строку с выбором типа субъекта
+    (`ChipFilterGroup`, тот же переключатель, что и в других формах) и
+    самого субъекта (`select` из `useUsers`/`useGroups` — те же хуки, что и
+    в `AccessWindow`); «Сохранить» — одна кнопка на всю таблицу, за один
+    проход по всем строкам: непустой набор галок → `grantRepository.upsert()`
+    (маска целиком, апсерт не аддитивный — см.
+    `docs/FRONTEND_INTEGRATION.md` §7, поэтому в таблице всегда показан
+    полный текущий набор, а не только то, что меняли); все галки сняты у
+    уже существующего гранта → `grantRepository.remove()`; строка без
+    выбранного субъекта — пропускается. У каждой строки есть и точечный
+    «×»: для новой строки — просто убрать её из черновика, для существующей
+    — `remove()` сразу, не дожидаясь общего «Сохранить».
+
+  **Важный баг и его фикс** — `entities/grant` (`GrantRepository`) и
+  `entities/resource` дают `Grant[]`/`Resource[]` как обычно, но `ConfigWindow`
+  раньше передавал в `ResourceGrantsSection` результат
+  `grants.filter(...)`, посчитанный прямо в теле `.map()` — то есть новый
+  массив на **каждый** рендер `ConfigWindow`. А рендерится оно не только
+  когда меняются реальные данные: клик где угодно внутри окна вызывает
+  `Window`'s `onPointerDown → focusWindow()`, который меняет `windowsStore`
+  и переrenderивает весь `WorkspaceCanvas`, включая `ConfigWindow`. Секция
+  синхронизирует свои локальные `rows` с пропом `grants` через `useEffect`
+  — и с нестабильной ссылкой эта синхронизация срабатывала почти на каждый
+  клик, стирая несохранённые правки (например, только что добавленную
+  строку) раньше, чем пользователь успевал нажать «Сохранить». Фикс: полный
+  `grants` прокидывается как есть (стабильная ссылка — `useState` внутри
+  `useGrants`, меняется только при реальном рефетче), а
+  `ResourceGrantsSection` сам мемоизирует срез по сущности —
+  `useMemo(() => allGrants.filter(...), [allGrants, resource.code])`. Урок
+  на будущее: если у компонента внутри воркспейса есть несохранённый
+  локальный черновик, синхронизируемый с пропом через `useEffect`, этот
+  проп обязан быть referentially stable, иначе клик по окну сотрёт черновик.
 - Профиль пользователя (`widgets/header/AppHeader.tsx` → `features/auth/UserMenu.tsx`)
   — аватар в шапке стал кликабельной кнопкой, по клику рядом с ней открывается
   попап с `userName`/`email` текущего юзера (`authStore.user`) и кнопкой
@@ -118,6 +140,10 @@ TypeScript не подключался вообще. Все три файла/п
   будущего dropdown/popover, не только этого). Инициалы на самой кнопке и оба
   id в попапе — см. отдельный блок «Учётка vs профиль» ниже, там же
   объясняется, почему это best-effort, а не гарантированно точное значение.
+  Оба id в попапе выводятся лейблом на одной строке и значением на
+  следующей (`.obj-field-label` + `.user-menu-id-value`, с `word-break:
+  break-all`), а не в одну строку с лейблом — длинный uuid иначе вылезал за
+  границы попапа (`width: 220px`).
 - **Logout без бэкенд-ручки.** На бэкенде нет `/auth/logout` — `authStore.logout()`
   чистит куки на фронте (`core/auth/clearAllCookies.ts`) и уходит на `/login`,
   без HTTP-запроса. Важная оговорка прямо в этом файле: если кука с токеном
@@ -235,11 +261,10 @@ src/
 │   │   └── hooks/{useGroups,useCreateGroup,useGroupMembers}.ts
 │   ├── access/AccessWindow.tsx          # окно workspace: вкладки Users/Groups
 │   └── config/
-│       ├── ConfigWindow.tsx              # окно workspace: выдача прав субъектам
-│       ├── GrantsList.tsx
-│       ├── GrantForm.tsx
+│       ├── ConfigWindow.tsx              # окно workspace: список сущностей
+│       ├── ResourceGrantsSection.tsx      # одна сущность: свёрнуто/таблица прав
 │       ├── permissionLabels.ts
-│       └── hooks/{useGrants,useResources,useUpsertGrant}.ts
+│       └── hooks/{useGrants,useResources}.ts
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
 │   ├── workspace/{WorkspaceCanvas,WindowToolbar,useWorkspaceUrlSync}
@@ -252,7 +277,7 @@ src/
 │   └── actionLog/ActionLogWidget.tsx
 │
 ├── shared/                  # ничего не знает про backend-сущности
-│   ├── ui/{Button,Badge,ChipFilterGroup,ChipToggleGroup,ProgressBar,StatChip,
+│   ├── ui/{Button,Badge,ChipFilterGroup,ProgressBar,StatChip,
 │   │        Tag,SensorRow,Breadcrumb,Window,EmptyState}.tsx
 │   └── hooks/{useInterval,useClock,useDismiss}.ts
 │

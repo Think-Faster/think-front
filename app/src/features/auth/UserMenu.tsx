@@ -45,11 +45,13 @@ export default function UserMenu() {
           <div className="user-menu-email">{user?.email ?? '—'}</div>
 
           <div className="user-menu-id">
-            ID учётной записи: <span className="mono">{user?.id ?? '—'}</span>
+            <div className="obj-field-label">ID учётной записи</div>
+            <div className="user-menu-id-value mono">{user?.id ?? '—'}</div>
           </div>
 
           <div className="user-menu-id">
-            ID профиля: <span className="mono">{profile?.id ?? '—'}</span>
+            <div className="obj-field-label">ID профиля</div>
+            <div className="user-menu-id-value mono">{profile?.id ?? '—'}</div>
           </div>
 
           <button className="btn user-menu-logout" onClick={handleLogout}>
