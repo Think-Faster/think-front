@@ -2,6 +2,7 @@ import { ComponentType } from 'react';
 
 import { hasPermission, PermissionAction } from '../permissions/permissionService';
 import AccessWindow from '../../features/access/AccessWindow';
+import AssetsWindow from '../../features/assets/AssetsWindow';
 import ConfigWindow from '../../features/config/ConfigWindow';
 import PredictionDetailWindow from '../../features/predictions/PredictionDetailWindow';
 import PredictionQueueWindow from '../../features/predictions/PredictionQueueWindow';
@@ -117,5 +118,15 @@ export const windowRegistry: WindowDefinition[] = [
     component: ConfigWindow,
     defaultView: { x: 336, y: 466, width: 480, height: 460, open: false, z: 19 },
     requiredPermission: [{ resource: 'permissions', action: 'manage' }],
+  },
+  {
+    id: 'assets',
+    title: 'Объекты и датчики',
+    component: AssetsWindow,
+    defaultView: { x: 1150, y: 20, width: 420, height: 440, open: false, z: 20 },
+    requiredPermission: [
+      { resource: 'objects', action: 'read' },
+      { resource: 'sensors', action: 'read' },
+    ],
   },
 ];
