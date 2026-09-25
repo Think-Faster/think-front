@@ -4,6 +4,8 @@ import { hasPermission, PermissionAction } from '../permissions/permissionServic
 import AccessWindow from '../../features/access/AccessWindow';
 import AssetsWindow from '../../features/assets/AssetsWindow';
 import ConfigWindow from '../../features/config/ConfigWindow';
+import IncidentsWindow from '../../features/incidents/IncidentsWindow';
+import PeopleWindow from '../../features/people/PeopleWindow';
 import PredictionDetailWindow from '../../features/predictions/PredictionDetailWindow';
 import PredictionQueueWindow from '../../features/predictions/PredictionQueueWindow';
 import TaskDetailWindow from '../../features/tasks/TaskDetailWindow';
@@ -111,5 +113,24 @@ export const windowRegistry: WindowDefinition[] = [
     component: TaskDetailWindow,
     defaultView: { x: 1180, y: 520, width: 380, height: 560, open: false, z: 16 },
     requiredPermission: [{ resource: 'tasks', action: 'read' }],
+  },
+  {
+    id: 'incidents',
+    title: 'Происшествия',
+    component: IncidentsWindow,
+    defaultView: { x: 20, y: 1020, width: 420, height: 480, open: false, z: 17 },
+    requiredPermission: [{ resource: 'incidents', action: 'read' }],
+  },
+  {
+    id: 'people',
+    title: 'Люди',
+    component: PeopleWindow,
+    defaultView: { x: 460, y: 1020, width: 460, height: 560, open: false, z: 18 },
+    requiredPermission: [
+      { resource: 'schedule', action: 'read' },
+      { resource: 'assigned_objects', action: 'read' },
+      { resource: 'engineers', action: 'read' },
+      { resource: 'presence', action: 'read' },
+    ],
   },
 ];

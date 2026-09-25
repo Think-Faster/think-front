@@ -49,5 +49,21 @@ export const endpoints = {
       reports: (id: string) => `/bff/tasks/${id}/reports`,
       returns: (id: string) => `/bff/tasks/${id}/returns`,
     },
+    incidents: {
+      list: '/bff/incidents',
+      byId: (id: string) => `/bff/incidents/${id}`,
+      confirm: (id: string) => `/bff/incidents/${id}/confirm`,
+    },
+    userSchedule: {
+      list: (userId: string) => `/bff/users/${userId}/schedule`,
+      byId: (userId: string, entryId: string) => `/bff/users/${userId}/schedule/${entryId}`,
+    },
+    userAssignedObjects: {
+      list: (userId: string) => `/bff/users/${userId}/assigned-objects`,
+      byId: (userId: string, objectId: number) => `/bff/users/${userId}/assigned-objects/${objectId}`,
+    },
+    userEngineerProfile: (userId: string) => `/bff/users/${userId}/engineer-profile`,
+    presence: '/bff/presence',
+    brigades: '/bff/brigades',
   },
 } as const;
