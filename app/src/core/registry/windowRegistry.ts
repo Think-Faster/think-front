@@ -12,15 +12,6 @@ import PredictionQueueWindow from '../../features/predictions/PredictionQueueWin
 import TaskDetailWindow from '../../features/tasks/TaskDetailWindow';
 import TaskQueueWindow from '../../features/tasks/TaskQueueWindow';
 
-export interface WindowDefaultView {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  open: boolean;
-  z: number;
-}
-
 export interface WindowPermissionRequirement {
   resource: string;
   action: PermissionAction;
@@ -30,7 +21,12 @@ export interface WindowDefinition {
   id: string;
   title: string;
   component: ComponentType;
-  defaultView: WindowDefaultView;
+  // Используется только для затравки самой первой сетки (когда в
+  // localStorage ещё ничего нет) — по порядку реестра автоматически
+  // размещает все окна с defaultOpen: true через тот же алгоритм, что и
+  // клик по разделу в сайдбаре (см. core/workspace/gridStore.ts). Никакого
+  // отношения к размеру/позиции — это теперь целиком состояние сетки.
+  defaultOpen: boolean;
   // Все текущие окна завязаны на реальные BFF-ресурсы, поэтому
   // requiredPermission обязателен — окно видно, только если у пользователя
   // есть хотя бы одно из перечисленных прав (логическое ИЛИ). Если когда-то
@@ -58,27 +54,27 @@ export function isWindowVisible(
 }
 
 // Adding a new workspace window is a registry entry, not a change to
-// WorkspaceCanvas or WindowToolbar (see архитектура §21, §54).
+// WorkspaceCanvas or WorkspaceSidebar (see архитектура §21, §54).
 export const windowRegistry: WindowDefinition[] = [
   {
     id: 'queue',
     title: 'Очередь прогнозов',
     component: PredictionQueueWindow,
-    defaultView: { x: 20, y: 20, width: 320, height: 480, open: true, z: 10 },
+    defaultOpen: true,
     requiredPermission: [{ resource: 'predictions', action: 'read' }],
   },
   {
     id: 'pred',
     title: 'Карточка прогноза',
     component: PredictionDetailWindow,
-    defaultView: { x: 360, y: 20, width: 360, height: 560, open: true, z: 11 },
+    defaultOpen: true,
     requiredPermission: [{ resource: 'predictions', action: 'read' }],
   },
   {
     id: 'access',
     title: 'Пользователи и группы',
     component: AccessWindow,
-    defaultView: { x: 740, y: 20, width: 420, height: 480, open: false, z: 12 },
+    defaultOpen: false,
     requiredPermission: [
       { resource: 'users', action: 'read' },
       { resource: 'groups', action: 'read' },
@@ -88,14 +84,14 @@ export const windowRegistry: WindowDefinition[] = [
     id: 'config',
     title: 'Конфигурация доступа',
     component: ConfigWindow,
-    defaultView: { x: 740, y: 520, width: 480, height: 480, open: false, z: 13 },
+    defaultOpen: false,
     requiredPermission: [{ resource: 'permissions', action: 'read' }],
   },
   {
     id: 'assets',
     title: 'Объекты и датчики',
     component: AssetsWindow,
-    defaultView: { x: 20, y: 520, width: 420, height: 480, open: false, z: 14 },
+    defaultOpen: false,
     requiredPermission: [
       { resource: 'objects', action: 'read' },
       { resource: 'sensors', action: 'read' },
@@ -105,28 +101,28 @@ export const windowRegistry: WindowDefinition[] = [
     id: 'taskQueue',
     title: 'Очередь заявок',
     component: TaskQueueWindow,
-    defaultView: { x: 1180, y: 20, width: 320, height: 480, open: false, z: 15 },
+    defaultOpen: false,
     requiredPermission: [{ resource: 'tasks', action: 'read' }],
   },
   {
     id: 'taskDetail',
     title: 'Карточка заявки',
     component: TaskDetailWindow,
-    defaultView: { x: 1180, y: 520, width: 380, height: 560, open: false, z: 16 },
+    defaultOpen: false,
     requiredPermission: [{ resource: 'tasks', action: 'read' }],
   },
   {
     id: 'incidents',
     title: 'Происшествия',
     component: IncidentsWindow,
-    defaultView: { x: 20, y: 1020, width: 420, height: 480, open: false, z: 17 },
+    defaultOpen: false,
     requiredPermission: [{ resource: 'incidents', action: 'read' }],
   },
   {
     id: 'people',
     title: 'Люди',
     component: PeopleWindow,
-    defaultView: { x: 460, y: 1020, width: 460, height: 560, open: false, z: 18 },
+    defaultOpen: false,
     requiredPermission: [
       { resource: 'schedule', action: 'read' },
       { resource: 'assigned_objects', action: 'read' },
@@ -138,7 +134,7 @@ export const windowRegistry: WindowDefinition[] = [
     id: 'modelSettings',
     title: 'Настройки модели',
     component: ModelSettingsWindow,
-    defaultView: { x: 940, y: 1020, width: 460, height: 560, open: false, z: 19 },
+    defaultOpen: false,
     requiredPermission: [{ resource: 'model_settings', action: 'read' }],
   },
 ];

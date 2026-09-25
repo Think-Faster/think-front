@@ -45,10 +45,10 @@ export default function ResourceGrantsSection({
   canManage,
   onChanged,
 }: ResourceGrantsSectionProps) {
-  // useMemo — не пересоздавать эту ссылку на каждый рендер родителя (клик
-  // куда угодно в окне поднимает его z-index через windowsStore и триггерит
-  // такой рендер). Без этого resourceGrants была бы новым массивом каждый
-  // раз, useEffect ниже видел бы её "изменившейся" и стирал бы несохранённые
+  // useMemo — не пересоздавать эту ссылку на каждый рендер родителя (он
+  // перерисовывается по любой причине выше по дереву, не только из-за
+  // грантов). Без этого resourceGrants была бы новым массивом каждый раз,
+  // useEffect ниже видел бы её "изменившейся" и стирал бы несохранённые
   // правки в rows почти сразу после любого клика.
   const resourceGrants = useMemo(
     () => allGrants.filter(grant => grant.resourceCode === resource.code),
