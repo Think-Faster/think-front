@@ -1,17 +1,20 @@
 import { Outlet } from 'react-router-dom';
 
 import AppHeader from '../../widgets/header/AppHeader';
-import WindowToolbar from '../../widgets/workspace/WindowToolbar';
+import WorkspaceSidebar from '../../widgets/workspace/WorkspaceSidebar';
 
 export default function WorkspaceLayout() {
   return (
     <div className="shell">
       <AppHeader />
-      <WindowToolbar />
 
-      <main className="workspace">
-        <Outlet />
-      </main>
+      <div className="shell-body">
+        <WorkspaceSidebar />
+
+        <main className="workspace">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

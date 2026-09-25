@@ -45,12 +45,12 @@ export default function UserMenu() {
           <div className="user-menu-email">{user?.email ?? '—'}</div>
 
           <div className="user-menu-id">
-            <div className="obj-field-label">ID учётной записи</div>
+            <div className="field-label">ID учётной записи</div>
             <div className="user-menu-id-value mono">{user?.id ?? '—'}</div>
           </div>
 
           <div className="user-menu-id">
-            <div className="obj-field-label">ID профиля</div>
+            <div className="field-label">ID профиля</div>
             <div className="user-menu-id-value mono">{profile?.id ?? '—'}</div>
           </div>
 

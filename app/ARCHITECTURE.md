@@ -24,8 +24,9 @@
 - **Zustand** вместо Context — `stores/auth`, `stores/workspace`;
 - **Repository** вместо прямой мутации моков — например, `entities/user/userRepository.ts`;
 - **Registry** вместо `switch/if по id` — `core/registry/windowRegistry.ts`;
-- **URL-сериализацию workspace** — открытые окна попадают в `?windows=...&active=...`,
-  что даёт восстановление layout по прямой ссылке;
+- **Grid-workspace вместо свободных перекрывающихся окон** — фиксированная
+  сетка со своим состоянием в localStorage (см. «Редизайн: светлая тема и
+  grid-workspace» ниже);
 - **Единый API Client** с обработкой 401 через `core/auth/authEvents.ts` +
   `core/routing/navigation.ts` (без `window.location.href`);
 - **shared/ui** — переиспользуемые компоненты, вынесенные из повторяющейся
@@ -118,20 +119,20 @@ TypeScript не подключался вообще. Все три файла/п
   раньше передавал в `ResourceGrantsSection` результат
   `grants.filter(...)`, посчитанный прямо в теле `.map()` — то есть новый
   массив на **каждый** рендер `ConfigWindow`. А рендерится оно не только
-  когда меняются реальные данные: клик где угодно внутри окна вызывает
-  `Window`'s `onPointerDown → focusWindow()`, который меняет `windowsStore`
-  и переrenderивает весь `WorkspaceCanvas`, включая `ConfigWindow`. Секция
-  синхронизирует свои локальные `rows` с пропом `grants` через `useEffect`
-  — и с нестабильной ссылкой эта синхронизация срабатывала почти на каждый
-  клик, стирая несохранённые правки (например, только что добавленную
-  строку) раньше, чем пользователь успевал нажать «Сохранить». Фикс: полный
-  `grants` прокидывается как есть (стабильная ссылка — `useState` внутри
+  когда меняются реальные данные — родитель перерисовывается по многим
+  причинам, не связанным с грантами. Секция синхронизирует свои локальные
+  `rows` с пропом `grants` через `useEffect` — и с нестабильной ссылкой эта
+  синхронизация срабатывала почти на каждый такой ре-рендер, стирая
+  несохранённые правки (например, только что добавленную строку) раньше,
+  чем пользователь успевал нажать «Сохранить». Фикс: полный `grants`
+  прокидывается как есть (стабильная ссылка — `useState` внутри
   `useGrants`, меняется только при реальном рефетче), а
   `ResourceGrantsSection` сам мемоизирует срез по сущности —
   `useMemo(() => allGrants.filter(...), [allGrants, resource.code])`. Урок
-  на будущее: если у компонента внутри воркспейса есть несохранённый
+  на будущее: если у компонента внутри workspace есть несохранённый
   локальный черновик, синхронизируемый с пропом через `useEffect`, этот
-  проп обязан быть referentially stable, иначе клик по окну сотрёт черновик.
+  проп обязан быть referentially stable, иначе случайный ре-рендер родителя
+  сотрёт черновик.
 
   **Видимость окна vs право редактировать — разные права.** Изначально у
   `config` в реестре стояло `requiredPermission: [{ resource: 'permissions',
@@ -143,7 +144,7 @@ TypeScript не подключался вообще. Все три файла/п
   `requiredPermission` — всегда `read` (см. комментарий над
   `WindowDefinition.requiredPermission` в `windowRegistry.ts`), более строгие
   права гейтят конкретные действия внутри окна, а не его видимость в
-  списке/тулбаре.
+  списке/сайдбаре.
 - Профиль пользователя (`widgets/header/AppHeader.tsx` → `features/auth/UserMenu.tsx`)
   — аватар в шапке стал кликабельной кнопкой, по клику рядом с ней открывается
   попап с `userName`/`email` текущего юзера (`authStore.user`) и кнопкой
@@ -153,7 +154,7 @@ TypeScript не подключался вообще. Все три файла/п
   id в попапе — см. отдельный блок «Учётка vs профиль» ниже, там же
   объясняется, почему это best-effort, а не гарантированно точное значение.
   Оба id в попапе выводятся лейблом на одной строке и значением на
-  следующей (`.obj-field-label` + `.user-menu-id-value`, с `word-break:
+  следующей (`.field-label` + `.user-menu-id-value`, с `word-break:
   break-all`), а не в одну строку с лейблом — длинный uuid иначе вылезал за
   границы попапа (`width: 220px`).
 - **Logout без бэкенд-ручки.** На бэкенде нет `/auth/logout` — `authStore.logout()`
@@ -449,6 +450,143 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
   случая не показывается вовсе (а не «показать оба сразу и понадеяться на
   бэкенд»).
 
+## Редизайн: светлая тема и grid-workspace
+
+После того как все пять доменных фаз были готовы, интерфейс переделан по
+двум осям: цвет и механика окон. Прицел — не разработчики, а диспетчеры,
+многие немолодые и не привыкшие к софту с перетаскиванием/наложением окон,
+поэтому свободный drag/resize/z-index заменён на предсказуемую фиксированную
+сетку, а разделы переехали в постоянно видимый список слева вместо тогглов
+в верхнем тулбаре.
+
+### Светлая тема
+
+Практически весь `src/styles/index.css` уже был завязан на CSS custom
+properties в `:root` (`--bg`/`--surface`/`--text`/`--cyan` и т.д.), поэтому
+смена темы — это замена значений токенов, а не переписывание правил.
+Ориентир — Dozzle: белые/светло-серые поверхности, один синеватый акцент
+(бывший `--cyan`), приглушённые border вместо теней. Отдельно облегчены три
+места с плоским `rgba(0, 0, 0, 0.3x)` box-shadow (попап меню пользователя,
+`.win`, карточка логина) — на тёмном фоне они читались как мягкая тень, на
+белом были бы жёстким пятном.
+
+### Grid-workspace вместо свободных окон
+
+Раньше у каждого окна было собственное `{x, y, width, height, z}`
+(`stores/workspace/windowsStore.ts`, ныне удалён) — окна можно было тащить
+и накладывать друг на друга произвольно, состояние держал URL
+(`core/workspace/workspaceUrlSerializer.ts` + `widgets/workspace/
+useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — это матрица
+(равномерная сетка, как в таблице/CSS Grid, а не рекурсивное дерево сплитов
+как у тайлинговых оконных менеджеров): у всех окон в одной колонке — общая
+ширина, у всех окон в одной строке — общая высота, окна никогда не
+перекрываются, ровно одно окно на клетку.
+
+- **`core/workspace/gridTypes.ts`** — `GridTrack {id, size}` (колонка или
+  строка, `id` — не индекс, переживает вставку в середину без сдвига
+  остальных), `GridCell {columnId, rowId, windowId}` (`windowId: null` —
+  пустая клетка), `GridState {version, columns, rows, cells}` (`cells` —
+  плотный: одна запись на каждую пару колонка×строка).
+- **`core/workspace/gridConfig.ts`** — захардкоженные, специально
+  подобранные на глаз константы: `MAX_AUTO_COLUMNS = 3` (порог, после
+  которого автоалгоритм и кнопка «добавить колонку» переходят на новую
+  строку), `DEFAULT_COLUMN_SIZE`/`DEFAULT_ROW_SIZE`/`MIN_TRACK_SIZE`/
+  `DIVIDER_SIZE`/`ADD_TRACK_SIZE`. Если понадобится другая сетка — менять
+  только здесь.
+- **`core/workspace/gridStorage.ts`** — узкая граница ввода-вывода
+  (`GridStorage { load(), save() }`), сейчас единственная реализация —
+  `localStorageGridStorage` (ключ `kontur_grid_v1`, с версионированием: при
+  несовпадении `GridState.version` сохранённое состояние отбрасывается, а
+  не роняет приложение). Когда появится бэкенд для раскладки — это
+  единственное место, которое меняется (новая реализация `GridStorage`,
+  стор не трогается) — тот же приём, что `authApi`/`permissionsApi` уже
+  используют для остального I/O.
+- **`stores/workspace/gridStore.ts`** — вся логика размещения:
+  - `placeWindowAuto(windowId)` — скан слева-направо/сверху-вниз в поисках
+    пустой клетки; если сетка заполнена — новая колонка справа, а если
+    колонок уже `MAX_AUTO_COLUMNS` — новая строка снизу вместо неё.
+  - `placeWindowAt(windowId, targetWindowId, direction)` — ручной оверрайд
+    (drag-and-drop из сайдбара на правый/нижний край существующего окна):
+    новая колонка сразу справа от цели или новая строка сразу под ней.
+    **Не проверяет `MAX_AUTO_COLUMNS`** — это осознанный выбор
+    пользователя, а не эвристика, ей ограничение не навязывается.
+  - `removeWindow` очищает `windowId` у клетки, но не удаляет саму
+    строку/колонку — освободившаяся клетка просто доступна для следующего
+    `placeWindowAuto`. Удаление пустых строк/колонок не реализовано —
+    не просили, добавление есть, удаления нет.
+  - `resizeColumn`/`resizeRow` — тащит один трек, без zero-sum сдвига
+    соседей (`.workspace` и так скроллится).
+  - `addColumn`/`addRow` — ручное «добавить колонку/строку» (кнопки `+` на
+    правом/нижнем краю сетки), независимо от размещения окна;
+    `addColumn` возвращает `null`, если упёрлись в `MAX_AUTO_COLUMNS`.
+  - Все манипуляции — через чистые функции над `GridState`
+    (`insertColumnAt`/`insertRowAt`/`withWindowPlaced`/`withWindowRemoved`
+    и т.д.), сам стор — тонкая обвязка `set()`/`get()` поверх них.
+- **`widgets/workspace/WorkspaceCanvas.tsx`** — рендерит CSS Grid по
+  `grid.columns`/`grid.rows`: между каждой парой реальных треков — трек-
+  разделитель шириной `DIVIDER_SIZE` (`[col][divider][col][divider][col]`),
+  так что разделитель — обычный DOM-элемент, а не оверлей с ручной
+  математикой. Реальный трек `i` живёт на CSS grid line `2i+1`, разделитель
+  между `i` и `i+1` — на `2i+2`. Плюс два крайних трека шириной
+  `ADD_TRACK_SIZE` для кнопок «+» (добавить колонку/строку).
+- **`widgets/workspace/GridColumnDivider.tsx`/`GridRowDivider.tsx`** —
+  drag-resize разделителя тем же приёмом, что раньше был в `Window.tsx`
+  (`pointerdown` → `setPointerCapture` → `pointermove` меняет размер трека
+  → `pointerup`), без новой зависимости (в `package.json` нет DnD/resize-
+  библиотек).
+- **`widgets/workspace/WorkspaceSidebar.tsx`** — заменил
+  `WindowToolbar.tsx` (топ-бар с чипами). Список всех видимых по правам
+  окон реестра слева, с точкой-индикатором «размещено/нет» (как раньше
+  `.win-chip.on`). Клик без сдвига мыши — тоггл (разместить/убрать, как
+  раньше `toggleWindow`); сдвиг больше 6px — запускает drag-оверрайд:
+  «призрак» с заголовком следует за курсором (`position: fixed;
+  pointer-events: none`), `document.elementFromPoint(...).closest(
+  '[data-window-id]')` находит окно под курсором (см. `data-window-id` в
+  `shared/ui/Window.tsx` — так сайдбару не нужен общий реестр ref'ов с
+  канвасом), курсор в крайних 25% ширины/высоты клетки — валидная цель
+  (`right`/`bottom`), иначе «мёртвая зона». Отпустили вне клетки или в
+  мёртвой зоне → откат на `placeWindowAuto` (drag никогда не «проваливается
+  в пустоту» молча).
+- **`shared/ui/Window.tsx`** — обрезан до заголовка+закрытия+контента,
+  больше не сам себя позиционирует: `x/y/width/height/zIndex/onMove/
+  onResize/onFocus` убраны целиком, размер и место теперь целиком задаёт
+  родительская grid-клетка. `data-window-id` на корневом `<section>` —
+  единственное, что добавилось (hit-test для drag-оверрайда).
+- **`core/registry/windowRegistry.ts`** — `WindowDefaultView`
+  (`x/y/width/height/open/z`) заменён на один `defaultOpen: boolean`.
+  Используется только для затравки самой первой (нет ещё `kontur_grid_v1`
+  в localStorage) сетки: `gridStore` прогоняет `placeWindowAuto` по записям
+  реестра в порядке объявления для всех `defaultOpen: true` (сейчас —
+  `queue`/`pred`, как раньше были единственными `open: true` по умолчанию).
+- **URL-синхронизация удалена совсем**, не только переименована —
+  состояние теперь только в localStorage (`gridStorage.ts`), как и просили
+  явно. `/predictions/:id`/`/tasks/:id` продолжают работать: маршрут
+  по-прежнему рендерит `WorkspaceCanvas`, а `PredictionDetailWindow`/
+  `TaskDetailWindow` как и раньше читают `useParams()` — это не зависит от
+  сетки. Единственный сценарий, который раньше подстраховывал URL-синк и
+  теперь не подстраховывает: если пользователь когда-то закрыл `pred`/
+  `taskDetail` в своей сохранённой сетке, а потом перешёл по прямой ссылке
+  — окно не появится само. Это принятое ограничение (было бы граничным
+  случаем и раньше — `<Link>` в `PredictionQueueWindow`/`TaskQueueWindow`
+  никогда не дописывали `?windows=...`), не регрессия, специально не
+  решалось в этом заходе.
+- **Мёртвый CSS вычищен заодно** — `.map-*`/`.schem-*`/`.picket-*`/
+  `.anomaly-flag*`/`.sensor-row*`/`.tl-*`(timeline)/`.obj-grid`/`.obj-left`/
+  `.obj-right`/`.obj-field-val*`/`.mini-schem*`/`.sensor-tag`/`.stream-row*`/
+  `.log-row*` — правила без единого совпадения ни в одном `.tsx` (проверено
+  grep'ом), остатки давно удалённых мок-окон (карта/схема/таймлайн/поток/
+  лог), чей CSS тогда не подчистили. Единственное исключение —
+  `.obj-field-label`, реально используется в `UserMenu.tsx` — переименован
+  в `.field-label` (нейтральное имя, больше не привязано к
+  несуществующему «object»-окну).
+
+**Осознанно не сделано в этом заходе** (не запрашивалось): удаление пустых
+строк/колонок из сетки; перетаскивание уже размещённого окна в другую
+клетку через отдельный UI (технически работает — `withWindowPlaced` в
+любом случае снимает окно со старой клетки — но целевого аффорданса для
+этого нет, кроме как через drag того же раздела из сайдбара); бэкенд для
+раскладки (только `GridStorage`-граница под будущую замену).
+
 ## Структура директорий
 
 ```text
@@ -458,7 +596,7 @@ src/
 │   ├── AppRoutes.tsx          # список маршрутов
 │   ├── NavigationBridge.tsx    # регистрирует useNavigate() для core/routing
 │   ├── layouts/
-│   │   └── WorkspaceLayout.tsx # Header + WindowToolbar + <Outlet/>
+│   │   └── WorkspaceLayout.tsx # Header + shell-body(Sidebar + <Outlet/>)
 │   └── routing/
 │       └── ProtectedRoute.tsx
 │
@@ -479,8 +617,11 @@ src/
 │   ├── permissions/
 │   │   ├── permissionService.ts   # can()/usePermission()(resource, action)
 │   │   └── permissionsApi.ts      # GET /bff/permissions/me
-│   ├── registry/windowRegistry.ts        # id → { component, defaultView, title }
-│   └── workspace/workspaceUrlSerializer.ts
+│   ├── registry/windowRegistry.ts        # id → { component, defaultOpen, title }
+│   └── workspace/
+│       ├── gridTypes.ts                   # GridTrack/GridCell/GridState
+│       ├── gridConfig.ts                  # MAX_AUTO_COLUMNS и другие константы сетки
+│       └── gridStorage.ts                 # GridStorage — граница I/O, сейчас localStorage
 │
 ├── entities/                # доменные сущности: тип + данные + repository
 │   ├── prediction/
@@ -540,7 +681,7 @@ src/
 │
 ├── stores/                  # Zustand — только client state
 │   ├── auth/authStore.ts
-│   ├── workspace/windowsStore.ts
+│   ├── workspace/gridStore.ts            # GridState + placeWindowAuto/placeWindowAt/resize*/addColumn/addRow
 │   ├── permissions/permissionsStore.ts  # карта "ресурс → права", пустая по умолчанию/на ошибке
 │   └── profile/profileStore.ts          # BFF-профиль текущего юзера (best effort, см. раздел выше)
 │
@@ -601,7 +742,7 @@ src/
 │       └── hooks/{useModelVersions,useCoefficients,useRetrainJobs,useIgnoredRanges}.ts
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
-│   ├── workspace/{WorkspaceCanvas,WindowToolbar,useWorkspaceUrlSync}
+│   ├── workspace/{WorkspaceCanvas,WorkspaceSidebar,GridColumnDivider,GridRowDivider}
 │   └── header/AppHeader.tsx
 │
 ├── shared/                  # ничего не знает про backend-сущности
@@ -758,7 +899,7 @@ features/room-status/
 
 Это самый частый сценарий добавления функциональности в этот конкретный
 проект — рабочая область состоит из независимых окон, и *добавление окна не
-должно требовать правок `WorkspaceCanvas.tsx` или `WindowToolbar.tsx`*.
+должно требовать правок `WorkspaceCanvas.tsx` или `WorkspaceSidebar.tsx`*.
 
 1. Сделать сам виджет — presentational-компонент без пропсов (или с
    пропсами, у которых есть дефолты), в `src/widgets/<name>/<Name>Widget.tsx`.
@@ -777,18 +918,24 @@ features/room-status/
      id: 'rooms',
      title: 'Статус помещений',
      component: RoomStatusList,
-     defaultView: { x: 20, y: 900, width: 400, height: 300, open: false, z: 18 },
+     defaultOpen: false,
+     requiredPermission: [{ resource: 'rooms', action: 'read' }],
    },
    ```
 
-3. Больше ничего менять не нужно — `WorkspaceCanvas` и `WindowToolbar`
-   автоматически подхватят новую запись реестра, `windowsStore` создаст для
-   неё runtime-состояние при первом запуске (или возьмёт restored-состояние
-   из localStorage/URL, если id уже встречался).
+3. Больше ничего менять не нужно — `WorkspaceSidebar` и `WorkspaceCanvas`
+   автоматически подхватят новую запись реестра. Раздел появится в списке
+   слева; клик по нему разместит окно в свободной клетке сетки (или создаст
+   колонку/строку, если сетка уже заполнена — см. «Редизайн: светлая тема и
+   grid-workspace» выше).
 
 `id` должен быть уникальным и стабильным — он используется как ключ и в
-`localStorage` (`kontur_layout_v3`), и в URL (`?windows=...`). Менять `id`
-существующего окна нельзя без потери сохранённого layout у пользователей.
+`localStorage` (`kontur_grid_v1`), и внутри `GridCell.windowId`. Менять `id`
+существующего окна нельзя без потери сохранённой раскладки у пользователей.
+`defaultOpen: true` стоит ставить только тем окнам, которые должны появиться
+сами при самом первом запуске приложения (без сохранённого
+`kontur_grid_v1`) — сейчас это `queue`/`pred`, основной рабочий экран
+диспетчера.
 
 ---
 
@@ -804,7 +951,7 @@ features/room-status/
   из repository. Если проект дорастёт до React Query — этот хук достаточно
   переписать внутри, наружу (компоненты) ничего не поменяется.
 
-Пример нового store — по образцу `windowsStore.ts`:
+Пример нового store — по образцу `gridStore.ts`:
 
 ```ts
 // src/stores/notifications/notificationsStore.ts
@@ -827,7 +974,7 @@ export const useNotificationsStore = create<NotificationsState>(set => ({
 }));
 ```
 
-Не смешивать `authStore` и `windowsStore` — это два независимых стора, и
+Не смешивать `authStore` и `gridStore` — это два независимых стора, и
 третий домен состояния должен быть третьим стором, а не полем в одном из
 существующих (§8, §24 архитектурного документа).
 
@@ -875,10 +1022,10 @@ export const useNotificationsStore = create<NotificationsState>(set => ({
   `core/registry/windowRegistry.ts` — у записи реестра есть необязательное
   поле `requiredPermission: { resource, action }[]` (логическое ИЛИ между
   элементами, обязательное — см. «Ни одного окна на локальных моках» ниже).
-  `WorkspaceCanvas`/`WindowToolbar` перед рендером каждого окна зовут
+  `WorkspaceCanvas`/`WorkspaceSidebar` перед рендером каждого окна зовут
   `isWindowVisible(definition, permissions)` — если ни одно право не
-  подтверждено, окно не появляется ни в тулбаре, ни на холсте, независимо от
-  того, что лежит в `windowsStore` (открыто оно там или нет). У `access`
+  подтверждено, окно не появляется ни в сайдбаре, ни на холсте, независимо
+  от того, что лежит в `gridStore` (размещено оно там или нет). У `access`
   (Пользователи и группы) — `requiredPermission: [{ resource: 'users',
   action: 'read' }, { resource: 'groups', action: 'read' }]`.
 
