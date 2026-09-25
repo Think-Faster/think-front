@@ -1795,7 +1795,8 @@ button.queue-item {
 }
 
 .login-form input,
-.login-form select {
+.login-form select,
+.login-form textarea {
   width: 100%;
 
   padding: 10px 11px;
@@ -1812,8 +1813,13 @@ button.queue-item {
   outline: none;
 }
 
+.login-form textarea {
+  resize: vertical;
+}
+
 .login-form input:focus,
-.login-form select:focus {
+.login-form select:focus,
+.login-form textarea:focus {
   border-color: var(--cyan);
 }
 

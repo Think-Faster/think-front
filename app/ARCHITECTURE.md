@@ -186,6 +186,69 @@ TypeScript не подключался вообще. Все три файла/п
   то есть перепривязать профиль к другой учётке. `UpdateUserRequest`
   (`entities/user/types.ts`) соответственно включает `authUserId`.
 
+### Доменные сущности (docs/FRONTEND_INTEGRATION_DOMAIN_MODELS.md)
+
+Помимо RBAC-контура (users/groups/permissions) BFF отдаёт доменный пласт:
+объекты и топология, датчики, прогнозы, заявки и работы, происшествия,
+график/присутствие/инженеры, админ-настройки модели — семь областей. Это
+несопоставимо больше по объёму, чем RBAC, и часть из них (прогнозы) напрямую
+заменяет наш текущий мок. Поэтому интеграция разбита на фазы, а не сделана
+одним заходом:
+
+- **Фаза 1 — Объекты + Датчики (сделано).** Базовый CRUD по образцу
+  Users/Groups.
+- **Фаза 2 — Прогнозы (не сделано).** Перепись `entities/prediction` с мока
+  на реальную модель — самая ценная фаза (это центр текущего UI), но и самая
+  ломающая: реальный `PredictionDto` не совпадает по форме с нашим моком
+  (нет поля `risk`, другой набор статусов, `object`/`segment` замена на
+  `objectId` с резолвом через объекты, `why[]` замена на
+  `factors[]`/`evidence[]`, `rejectReason` замена на `reasonCode`). См.
+  список ниже — что именно уйдёт из `entities/prediction`/`features/predictions`,
+  когда до этой фазы дойдёт очередь.
+- **Фаза 3 — Заявки и работы.** Новая фича с нуля, включая обработку гонки
+  `409 task_already_taken` на `POST /tasks/{id}/take`.
+- **Фаза 4 — Происшествия, график/присутствие/инженеры/бригады.** Частично
+  ложится как расширение `entities/user` (свои вкладки/ручки на
+  `/users/{id}/...`), частично — новые лёгкие сущности (`brigade`).
+  `/presence` — только чтение, ручки записи нет и не будет (бэкенд сам
+  фиксирует присутствие на каждый запрос).
+- **Фаза 5 — Админ-настройки модели.** Новая фича по духу похожая на
+  «Конфигурацию доступа» (`ModelVersion`/`Coefficient`/`RetrainJob`/
+  `IgnoredRange`, единое право `model_settings:read`/`model_settings:manage`
+  без отдельных create/update/delete). `Coefficient` версионируется, а не
+  редактируется — `POST` всегда создаёт новую запись.
+
+**Осознанно вне scope на неопределённый срок** (не фаза, а отдельный
+пласт работы): рендер геометрии (`geometryGeoJson`) объектов/пикетов/слоёв
+карты на настоящей карте/схеме — нужен MapLibre/Leaflet или свой SVG-парсер
+GeoJSON, следующий уровень поверх CRUD. `entities/object`/`entities/sensor`
+сознательно не включают `/objects/{id}/pickets`, `/objects/{id}/layers`,
+`/sensors/{id}/links` по этой же причине. Аналогично живые показания
+датчиков (`StreamWidget`) — `SensorDto` не хранит текущее значение, это
+снимок потока `tf-funnel`, которого пока нет; менять там нечего.
+
+#### Фаза 1 (объекты + датчики) — что добавлено
+
+- `entities/object` — `MonitoredObject` (не `Object`, чтобы не затенять
+  встроенный тип), `objectRepository`: `GET/POST/PUT /bff/objects[/{id}]`.
+  `id` — внешний, из справочника мониторинга, не генерируется бэкендом —
+  поэтому в форме создания это обычное поле ввода, как раньше `authUserId`
+  в режиме «Существующая учётная запись».
+- `entities/sensor` — `Sensor`, `sensorRepository`:
+  `GET/POST/PUT /bff/sensors[/{id}]`, с фильтром `objectId`.
+- `features/objects/ObjectsPanel.tsx` + `ObjectEditForm.tsx`, аналогично
+  `features/sensors` — тот же паттерн список+создание+редактирование, что и
+  Users/Groups. В `SensorsPanel.tsx` есть фильтр «Объект» (select) — в
+  отличие от пользователей, датчики без объектного контекста малополезны
+  (док сам подсказывает это порядком query-параметров: `objectId` идёт
+  первым в `/sensors?objectId=&search=...`).
+- `features/assets/AssetsWindow.tsx` — окно workspace «Объекты и датчики»,
+  вкладки Объекты/Датчики через `ChipFilterGroup`, тот же композиционный
+  приём, что в `AccessWindow` для Users/Groups. `requiredPermission` —
+  `objects:read` ИЛИ `sensors:read`.
+- Новая CSS-необходимость: `.login-form textarea` (поле «Геометрия
+  (GeoJSON)» — просто хранит сырой текст, без валидации/рендера).
+
 ## Структура директорий
 
 ```text
@@ -233,9 +296,15 @@ src/
 │   ├── resource/
 │   │   ├── types.ts
 │   │   └── resourceRepository.ts      # GET /bff/resources (только чтение)
-│   └── grant/
+│   ├── grant/
+│   │   ├── types.ts
+│   │   └── grantRepository.ts         # GET/POST /bff/permissions/grants, DELETE .../{id}
+│   ├── object/
+│   │   ├── types.ts                    # MonitoredObject (не Object!)
+│   │   └── objectRepository.ts        # GET/POST/PUT /bff/objects[/{id}] — без pickets/layers
+│   └── sensor/
 │       ├── types.ts
-│       └── grantRepository.ts         # GET/POST /bff/permissions/grants, DELETE .../{id}
+│       └── sensorRepository.ts        # GET/POST/PUT /bff/sensors[/{id}] — без links
 │
 ├── stores/                  # Zustand — только client state
 │   ├── auth/authStore.ts
@@ -260,11 +329,20 @@ src/
 │   │   ├── GroupMembersEditor.tsx        # участники выбранной группы: добавить/убрать
 │   │   └── hooks/{useGroups,useCreateGroup,useGroupMembers}.ts
 │   ├── access/AccessWindow.tsx          # окно workspace: вкладки Users/Groups
-│   └── config/
-│       ├── ConfigWindow.tsx              # окно workspace: список сущностей
-│       ├── ResourceGrantsSection.tsx      # одна сущность: свёрнуто/таблица прав
-│       ├── permissionLabels.ts
-│       └── hooks/{useGrants,useResources}.ts
+│   ├── config/
+│   │   ├── ConfigWindow.tsx              # окно workspace: список сущностей
+│   │   ├── ResourceGrantsSection.tsx      # одна сущность: свёрнуто/таблица прав
+│   │   ├── permissionLabels.ts
+│   │   └── hooks/{useGrants,useResources}.ts
+│   ├── objects/
+│   │   ├── ObjectsPanel.tsx              # список + форма создания/редактирования
+│   │   ├── ObjectEditForm.tsx
+│   │   └── hooks/{useObjects,useCreateObject,useUpdateObject}.ts
+│   ├── sensors/
+│   │   ├── SensorsPanel.tsx              # список (с фильтром по объекту) + создание/редактирование
+│   │   ├── SensorEditForm.tsx
+│   │   └── hooks/{useSensors,useCreateSensor,useUpdateSensor}.ts
+│   └── assets/AssetsWindow.tsx          # окно workspace: вкладки Объекты/Датчики
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
 │   ├── workspace/{WorkspaceCanvas,WindowToolbar,useWorkspaceUrlSync}

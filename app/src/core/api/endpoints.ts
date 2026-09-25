@@ -26,5 +26,13 @@ export const endpoints = {
       grants: '/bff/permissions/grants',
       grantById: (id: string) => `/bff/permissions/grants/${id}`,
     },
+    objects: {
+      list: '/bff/objects',
+      byId: (id: number) => `/bff/objects/${id}`,
+    },
+    sensors: {
+      list: '/bff/sensors',
+      byId: (id: number) => `/bff/sensors/${id}`,
+    },
   },
 } as const;
