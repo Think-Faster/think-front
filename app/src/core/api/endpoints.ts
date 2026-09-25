@@ -39,5 +39,15 @@ export const endpoints = {
       byId: (id: string) => `/bff/predictions/${id}`,
       decisions: (id: string) => `/bff/predictions/${id}/decisions`,
     },
+    tasks: {
+      list: '/bff/tasks',
+      byId: (id: string) => `/bff/tasks/${id}`,
+      take: (id: string) => `/bff/tasks/${id}/take`,
+      predictions: (id: string) => `/bff/tasks/${id}/predictions`,
+      predictionById: (id: string, predictionId: string) => `/bff/tasks/${id}/predictions/${predictionId}`,
+      assignments: (id: string) => `/bff/tasks/${id}/assignments`,
+      reports: (id: string) => `/bff/tasks/${id}/reports`,
+      returns: (id: string) => `/bff/tasks/${id}/returns`,
+    },
   },
 } as const;

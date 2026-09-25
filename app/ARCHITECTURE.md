@@ -214,8 +214,9 @@ TypeScript не подключался вообще. Все три файла/п
   `object`/`segment` заменяются на `objectId` с резолвом через объекты,
   `why[]` — на `factors[]`/`evidence[]`, `rejectReason` — на `reasonCode`).
   См. «Фаза 2 (прогнозы) — что добавлено» ниже.
-- **Фаза 3 — Заявки и работы.** Новая фича с нуля, включая обработку гонки
-  `409 task_already_taken` на `POST /tasks/{id}/take`.
+- **Фаза 3 — Заявки и работы (сделано).** Новая фича с нуля, включая
+  обработку гонки `409 task_already_taken` на `POST /tasks/{id}/take`. См.
+  «Фаза 3 (заявки и работы) — что добавлено» ниже.
 - **Фаза 4 — Происшествия, график/присутствие/инженеры/бригады.** Частично
   ложится как расширение `entities/user` (свои вкладки/ручки на
   `/users/{id}/...`), частично — новые лёгкие сущности (`brigade`).
@@ -301,6 +302,57 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
   была только у `.login-form select`) — понадобился для фильтра «Объект» в
   `PredictionFilters.tsx`, который живёт в `.win-toolbar`, а не в форме.
 
+#### Фаза 3 (заявки и работы) — что добавлено
+
+- `entities/task` — `WorkTask`/`WorkTaskListItem` под реальный `WorkTaskDto`:
+  вложенные `predictions[]`/`assignments[]`/`reports[]`/`returns[]` как
+  отдельные под-сущности (`TaskPrediction`/`TaskAssignment`/`TaskReport`/
+  `TaskReturn`) прямо в теле карточки, а не отдельными repository —
+  бэкенд отдаёт их только вложенно в `GET /tasks/{id}`, отдельных
+  `GET /tasks/{id}/reports` и т.п. нет. `taskRepository` — 10 методов:
+  `getList`/`get`/`create`/`update`/`take` плюс по паре
+  add/remove-методов на каждый под-список (кроме reports/returns — там
+  только add, отчёты и возвраты не редактируются и не удаляются).
+- **`take()` не глотает 409.** `POST /tasks/{id}/take` — гонка «кто первый
+  взял, тот ведёт»: два диспетчера могут одновременно кликнуть «Взять в
+  работу» по одной заявке, и второй получит `409 task_already_taken`. Это
+  штатный исход, не ошибка данных, поэтому `taskRepository.take()`
+  пробрасывает исключение как есть, а разбирает код `BffErrorCode` (`core/
+  errors/bffError.ts`, `task_already_taken` добавлен в union) вызывающий
+  код — `useTask.ts`: при этом коде показывается отдельное сообщение
+  («Заявку уже взяли в работу — обновляю список») и список обновляется,
+  вместо генерического «не удалось сохранить».
+- **`resultCode` в отчёте — текстовое поле**, не select: как и
+  `reasonCode` у прогнозов (см. Фаза 2), допустимые значения нигде в
+  документации не перечислены — не гадаем закрытый список.
+- **`engineerId` в форме назначения — это `useUsers()`, не отдельный
+  справочник инженеров.** Выделенной ручки со списком инженеров
+  (`GET /engineers`) нет — есть только `GET /users/{id}/engineer-profile`
+  (для одного пользователя) и `GET /brigades` (для бригад). Раз
+  `engineerId` — это по сути `userId`, пикер назначения переиспользует уже
+  существующий `useUsers()` из `features/users`, а не заводит новый
+  entity/repository ради одного select.
+- **Два окна, не одно** (`taskQueue` + `taskDetail`) — тот же паттерн, что
+  и у прогнозов (Фаза 2), и по той же причине: это основной рабочий экран
+  диспетчера (очередь + карточка должны быть видны одновременно), а не
+  админский CRUD-сценарий. Синхронизация — `/tasks/:id` (роут в
+  `AppRoutes.tsx`) + `useParams()` в `TaskDetailWindow`, как у предсказаний.
+- **`TaskQueueWindow` — единственное окно из пары с формой создания.** В
+  отличие от `PredictionQueueWindow` (создание прогнозов — не типовой
+  сценарий UI, см. Фаза 2), `POST /tasks` — обычный человеческий сценарий
+  (диспетчер заводит заявку по звонку/факту), поэтому здесь есть инлайн-
+  форма создания (`showCreate`-тумблер), как в `ObjectsPanel`/`UsersPanel`.
+- **Действия внутри карточки заявки гейтятся не только правом, но и
+  статусом.** `canEdit = canAct && isTaskActive(task.status)` —
+  `tasks:update` даёт право действовать вообще, но формы
+  прикрепления/назначения/отчёта/возврата показываются только пока заявка
+  реально «в работе» (`inWork`/`assigned`/`engineerWorking`/
+  `returnedToWork` — `isTaskActive()` в `features/tasks/taskLabels.ts`), не
+  до взятия (`new`) и не после завершения (`completed`/`closed`/
+  `cancelled`). Это отдельная проверка от `requiredPermission` окна
+  (которая по-прежнему на `read`, см. правило видимости выше) — она про
+  состояние конкретной заявки, а не про доступ к разделу.
+
 ## Структура директорий
 
 ```text
@@ -338,6 +390,9 @@ src/
 │   ├── prediction/
 │   │   ├── types.ts
 │   │   └── predictionRepository.ts    # GET /bff/predictions[/{id}], POST .../decisions — без create()
+│   ├── task/
+│   │   ├── types.ts                    # WorkTask + вложенные TaskPrediction/Assignment/Report/Return
+│   │   └── taskRepository.ts          # GET/POST/PUT /bff/tasks[/{id}], take + add/remove на под-списки
 │   ├── user/
 │   │   ├── types.ts
 │   │   └── userRepository.ts          # GET/POST/PUT /bff/users[/{id}]
@@ -393,7 +448,12 @@ src/
 │   │   ├── SensorsPanel.tsx              # список (с фильтром по объекту) + создание/редактирование
 │   │   ├── SensorEditForm.tsx
 │   │   └── hooks/{useSensors,useCreateSensor,useUpdateSensor}.ts
-│   └── assets/AssetsWindow.tsx          # окно workspace: вкладки Объекты/Датчики
+│   ├── assets/AssetsWindow.tsx          # окно workspace: вкладки Объекты/Датчики
+│   └── tasks/
+│       ├── TaskQueueWindow.tsx          # окно workspace: очередь + фильтры + создание
+│       ├── TaskDetailWindow.tsx          # окно workspace: карточка, читает :id из URL
+│       ├── taskLabels.ts
+│       └── hooks/{useTasks,useCreateTask,useTask}.ts
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
 │   ├── workspace/{WorkspaceCanvas,WindowToolbar,useWorkspaceUrlSync}

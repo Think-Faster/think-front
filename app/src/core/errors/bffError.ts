@@ -15,6 +15,10 @@ export type BffErrorCode =
   | 'validation_failed'
   | 'bad_request'
   | 'internal_error'
+  // "кто первый взял — тот ведёт": штатный исход гонки на
+  // POST /tasks/{id}/take, не ошибка данных — см.
+  // docs/FRONTEND_INTEGRATION_DOMAIN_MODELS.md §3.
+  | 'task_already_taken'
   | 'unknown';
 
 export interface BffError {

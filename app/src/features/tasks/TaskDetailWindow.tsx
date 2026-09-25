@@ -1,0 +1,363 @@
+import { FormEvent, useState } from 'react';
+import { useParams } from 'react-router-dom';
+
+import { usePermission } from '../../core/permissions/permissionService';
+import { ReturnTargetType } from '../../entities/task/types';
+import Badge from '../../shared/ui/Badge';
+import Button from '../../shared/ui/Button';
+import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
+import EmptyState from '../../shared/ui/EmptyState';
+import { useObjects } from '../objects/hooks/useObjects';
+import { usePredictions } from '../predictions/hooks/usePredictions';
+import { useUsers } from '../users/hooks/useUsers';
+import { useTask } from './hooks/useTask';
+import {
+  isTaskActive,
+  returnTargetTypeLabels,
+  returnTargetTypeOptions,
+  taskSourceTypeLabels,
+  taskStatusLabels,
+  taskStatusTone,
+} from './taskLabels';
+
+export default function TaskDetailWindow() {
+  const params = useParams<{ id: string }>();
+  const { objects } = useObjects();
+  const { predictions } = usePredictions();
+  const { users } = useUsers();
+
+  const {
+    task,
+    loading,
+    error,
+    acting,
+    actionError,
+    take,
+    addPrediction,
+    removePrediction,
+    addAssignment,
+    addReport,
+    addReturn,
+  } = useTask(params.id);
+
+  const canAct = usePermission('tasks', 'update');
+
+  const [predictionId, setPredictionId] = useState('');
+  const [isPrimary, setIsPrimary] = useState(false);
+
+  const [engineerId, setEngineerId] = useState('');
+  const [assignComment, setAssignComment] = useState('');
+
+  const [resultCode, setResultCode] = useState('');
+  const [actualState, setActualState] = useState('');
+  const [worksDone, setWorksDone] = useState('');
+  const [reportComment, setReportComment] = useState('');
+
+  const [returnTarget, setReturnTarget] = useState<ReturnTargetType>('dispatcher');
+  const [returnUserId, setReturnUserId] = useState('');
+  const [returnComment, setReturnComment] = useState('');
+
+  if (loading) {
+    return null;
+  }
+
+  if (error) {
+    return <div className="status-note rej">{error}</div>;
+  }
+
+  if (!task) {
+    return <EmptyState>Выберите заявку в очереди</EmptyState>;
+  }
+
+  const object = objects.find(item => item.id === task.objectId);
+  const active = isTaskActive(task.status);
+  const canEdit = canAct && active;
+
+  function userName(userId: string): string {
+    const user = users.find(item => item.id === userId);
+    return user ? `${user.lastName} ${user.firstName}` : userId;
+  }
+
+  function predictionTopic(predictionId: string): string {
+    const prediction = predictions.find(item => item.id === predictionId);
+    return prediction ? prediction.topic : predictionId;
+  }
+
+  async function handleAttachPrediction(event: FormEvent) {
+    event.preventDefault();
+    if (!predictionId) {
+      return;
+    }
+
+    if (await addPrediction({ predictionId, isPrimary })) {
+      setPredictionId('');
+      setIsPrimary(false);
+    }
+  }
+
+  async function handleAssign(event: FormEvent) {
+    event.preventDefault();
+    if (!engineerId) {
+      return;
+    }
+
+    if (await addAssignment({ engineerId, comment: assignComment || null })) {
+      setEngineerId('');
+      setAssignComment('');
+    }
+  }
+
+  async function handleReport(event: FormEvent) {
+    event.preventDefault();
+    if (!resultCode) {
+      return;
+    }
+
+    const ok = await addReport({
+      resultCode,
+      actualState: actualState || null,
+      worksDone: worksDone || null,
+      comment: reportComment || null,
+    });
+
+    if (ok) {
+      setResultCode('');
+      setActualState('');
+      setWorksDone('');
+      setReportComment('');
+    }
+  }
+
+  async function handleReturn(event: FormEvent) {
+    event.preventDefault();
+
+    const ok = await addReturn({
+      targetType: returnTarget,
+      targetUserId: returnTarget === 'dispatcher' ? returnUserId || null : null,
+      comment: returnComment || null,
+    });
+
+    if (ok) {
+      setReturnUserId('');
+      setReturnComment('');
+    }
+  }
+
+  return (
+    <div className="pd-body">
+      <div className="pd-risk-row">
+        <Badge tone={taskStatusTone(task.status)}>{taskStatusLabels[task.status]}</Badge>
+      </div>
+
+      <p className="pd-title">
+        №{task.number} · {task.topic}
+      </p>
+
+      <p className="pd-loc">
+        {object ? object.name : `Объект #${task.objectId}`} · {taskSourceTypeLabels[task.sourceType]}
+      </p>
+
+      {task.description && <p>{task.description}</p>}
+
+      <div className="pd-horizon">
+        Приоритет: <b>{task.priority}</b>
+      </div>
+
+      {actionError && <div className="login-error">{actionError}</div>}
+
+      {task.status === 'new' && canAct && (
+        <div className="pd-actions">
+          <Button variant="primary" disabled={acting} onClick={() => take()}>
+            Взять в работу
+          </Button>
+        </div>
+      )}
+
+      <p className="pd-section-title">Прогнозы-основания</p>
+
+      {task.predictions.filter(item => !item.detachedAt).length === 0 && (
+        <EmptyState>Не прикреплены</EmptyState>
+      )}
+
+      {task.predictions
+        .filter(item => !item.detachedAt)
+        .map(item => (
+          <div className="hist-item" key={item.predictionId}>
+            <span>
+              {predictionTopic(item.predictionId)}
+              {item.isPrimary ? ' · основной' : ''}
+            </span>
+
+            {canEdit && (
+              <button
+                className="win-close"
+                onClick={() => removePrediction(item.predictionId)}
+                title="Открепить"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        ))}
+
+      {canEdit && (
+        <form className="login-form" onSubmit={handleAttachPrediction}>
+          <label>
+            Прогноз
+            <select value={predictionId} onChange={event => setPredictionId(event.target.value)}>
+              <option value="">— выбрать —</option>
+              {predictions.map(prediction => (
+                <option key={prediction.id} value={prediction.id}>
+                  {prediction.topic}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={isPrimary}
+              onChange={event => setIsPrimary(event.target.checked)}
+            />
+            Основной
+          </label>
+
+          <Button type="submit" disabled={acting || !predictionId}>
+            Прикрепить прогноз
+          </Button>
+        </form>
+      )}
+
+      <p className="pd-section-title">Назначения</p>
+
+      {task.assignments.length === 0 && <EmptyState>Никто не назначен</EmptyState>}
+
+      {task.assignments.map(assignment => (
+        <div className="hist-item" key={assignment.id}>
+          <span>
+            {userName(assignment.engineerId)}
+            {assignment.comment ? ` · ${assignment.comment}` : ''}
+          </span>
+
+          <span className="d">{assignment.status}</span>
+        </div>
+      ))}
+
+      {canEdit && (
+        <form className="login-form" onSubmit={handleAssign}>
+          <label>
+            Инженер
+            <select value={engineerId} onChange={event => setEngineerId(event.target.value)}>
+              <option value="">— выбрать —</option>
+              {users.map(user => (
+                <option key={user.id} value={user.id}>
+                  {user.lastName} {user.firstName}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Комментарий
+            <input value={assignComment} onChange={event => setAssignComment(event.target.value)} />
+          </label>
+
+          <Button type="submit" disabled={acting || !engineerId}>
+            Назначить
+          </Button>
+        </form>
+      )}
+
+      <p className="pd-section-title">Отчёты</p>
+
+      {task.reports.length === 0 && <EmptyState>Отчётов нет</EmptyState>}
+
+      {task.reports.map(report => (
+        <div className="hist-item" key={report.id}>
+          <span>
+            {report.resultCode}
+            {report.worksDone ? ` · ${report.worksDone}` : ''}
+          </span>
+
+          <span className="d">{userName(report.engineerId)}</span>
+        </div>
+      ))}
+
+      {canEdit && (
+        <form className="login-form" onSubmit={handleReport}>
+          <label>
+            Код результата
+            <input value={resultCode} onChange={event => setResultCode(event.target.value)} required />
+          </label>
+
+          <label>
+            Фактическое состояние
+            <input value={actualState} onChange={event => setActualState(event.target.value)} />
+          </label>
+
+          <label>
+            Выполненные работы
+            <input value={worksDone} onChange={event => setWorksDone(event.target.value)} />
+          </label>
+
+          <label>
+            Комментарий
+            <input value={reportComment} onChange={event => setReportComment(event.target.value)} />
+          </label>
+
+          <Button type="submit" variant="primary" disabled={acting || !resultCode}>
+            Отправить отчёт
+          </Button>
+        </form>
+      )}
+
+      <p className="pd-section-title">Возвраты</p>
+
+      {task.returns.length === 0 && <EmptyState>Возвратов нет</EmptyState>}
+
+      {task.returns.map(item => (
+        <div className="hist-item" key={item.id}>
+          <span>
+            {returnTargetTypeLabels[item.targetType]}
+            {item.comment ? ` · ${item.comment}` : ''}
+          </span>
+
+          <span className="d">{userName(item.returnedBy)}</span>
+        </div>
+      ))}
+
+      {canEdit && (
+        <form className="login-form" onSubmit={handleReturn}>
+          <label>
+            Куда вернуть
+            <ChipFilterGroup options={returnTargetTypeOptions} value={returnTarget} onChange={setReturnTarget} />
+          </label>
+
+          {returnTarget === 'dispatcher' && (
+            <label>
+              Диспетчер
+              <select value={returnUserId} onChange={event => setReturnUserId(event.target.value)}>
+                <option value="">— выбрать —</option>
+                {users.map(user => (
+                  <option key={user.id} value={user.id}>
+                    {user.lastName} {user.firstName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <label>
+            Комментарий
+            <input value={returnComment} onChange={event => setReturnComment(event.target.value)} />
+          </label>
+
+          <Button type="submit" disabled={acting}>
+            Вернуть заявку
+          </Button>
+        </form>
+      )}
+    </div>
+  );
+}

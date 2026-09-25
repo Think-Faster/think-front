@@ -15,6 +15,7 @@ export default function AppRoutes() {
           <Route path="/" element={<WorkspacePage />} />
           <Route path="/dashboard" element={<WorkspacePage />} />
           <Route path="/predictions/:id" element={<WorkspacePage />} />
+          <Route path="/tasks/:id" element={<WorkspacePage />} />
         </Route>
       </Route>
 
