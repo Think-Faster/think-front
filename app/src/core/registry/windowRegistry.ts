@@ -4,6 +4,8 @@ import { hasPermission, PermissionAction } from '../permissions/permissionServic
 import AccessWindow from '../../features/access/AccessWindow';
 import AssetsWindow from '../../features/assets/AssetsWindow';
 import ConfigWindow from '../../features/config/ConfigWindow';
+import PredictionDetailWindow from '../../features/predictions/PredictionDetailWindow';
+import PredictionQueueWindow from '../../features/predictions/PredictionQueueWindow';
 
 export interface WindowDefaultView {
   x: number;
@@ -54,10 +56,24 @@ export function isWindowVisible(
 // WorkspaceCanvas or WindowToolbar (see архитектура §21, §54).
 export const windowRegistry: WindowDefinition[] = [
   {
+    id: 'queue',
+    title: 'Очередь прогнозов',
+    component: PredictionQueueWindow,
+    defaultView: { x: 20, y: 20, width: 320, height: 480, open: true, z: 10 },
+    requiredPermission: [{ resource: 'predictions', action: 'read' }],
+  },
+  {
+    id: 'pred',
+    title: 'Карточка прогноза',
+    component: PredictionDetailWindow,
+    defaultView: { x: 360, y: 20, width: 360, height: 560, open: true, z: 11 },
+    requiredPermission: [{ resource: 'predictions', action: 'read' }],
+  },
+  {
     id: 'access',
     title: 'Пользователи и группы',
     component: AccessWindow,
-    defaultView: { x: 20, y: 20, width: 420, height: 480, open: true, z: 10 },
+    defaultView: { x: 740, y: 20, width: 420, height: 480, open: false, z: 12 },
     requiredPermission: [
       { resource: 'users', action: 'read' },
       { resource: 'groups', action: 'read' },
@@ -67,14 +83,14 @@ export const windowRegistry: WindowDefinition[] = [
     id: 'config',
     title: 'Конфигурация доступа',
     component: ConfigWindow,
-    defaultView: { x: 460, y: 20, width: 480, height: 480, open: false, z: 11 },
+    defaultView: { x: 740, y: 520, width: 480, height: 480, open: false, z: 13 },
     requiredPermission: [{ resource: 'permissions', action: 'read' }],
   },
   {
     id: 'assets',
     title: 'Объекты и датчики',
     component: AssetsWindow,
-    defaultView: { x: 960, y: 20, width: 420, height: 480, open: true, z: 12 },
+    defaultView: { x: 20, y: 520, width: 420, height: 480, open: false, z: 14 },
     requiredPermission: [
       { resource: 'objects', action: 'read' },
       { resource: 'sensors', action: 'read' },
