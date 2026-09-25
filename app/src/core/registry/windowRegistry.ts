@@ -5,6 +5,7 @@ import AccessWindow from '../../features/access/AccessWindow';
 import AssetsWindow from '../../features/assets/AssetsWindow';
 import ConfigWindow from '../../features/config/ConfigWindow';
 import IncidentsWindow from '../../features/incidents/IncidentsWindow';
+import ModelSettingsWindow from '../../features/modelSettings/ModelSettingsWindow';
 import PeopleWindow from '../../features/people/PeopleWindow';
 import PredictionDetailWindow from '../../features/predictions/PredictionDetailWindow';
 import PredictionQueueWindow from '../../features/predictions/PredictionQueueWindow';
@@ -132,5 +133,12 @@ export const windowRegistry: WindowDefinition[] = [
       { resource: 'engineers', action: 'read' },
       { resource: 'presence', action: 'read' },
     ],
+  },
+  {
+    id: 'modelSettings',
+    title: 'Настройки модели',
+    component: ModelSettingsWindow,
+    defaultView: { x: 940, y: 1020, width: 460, height: 560, open: false, z: 19 },
+    requiredPermission: [{ resource: 'model_settings', action: 'read' }],
   },
 ];

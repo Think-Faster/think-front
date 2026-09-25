@@ -220,11 +220,15 @@ TypeScript не подключался вообще. Все три файла/п
 - **Фаза 4 — Происшествия, график/присутствие/инженеры/бригады (сделано).**
   Пять сущностей за один заход — объём как у Фазы 1–3 вместе, но каждая
   по отдельности небольшая. См. «Фаза 4 (люди) — что добавлено» ниже.
-- **Фаза 5 — Админ-настройки модели.** Новая фича по духу похожая на
-  «Конфигурацию доступа» (`ModelVersion`/`Coefficient`/`RetrainJob`/
-  `IgnoredRange`, единое право `model_settings:read`/`model_settings:manage`
-  без отдельных create/update/delete). `Coefficient` версионируется, а не
-  редактируется — `POST` всегда создаёт новую запись.
+- **Фаза 5 — Админ-настройки модели (сделано).** Четыре сущности
+  (`ModelVersion`/`Coefficient`/`RetrainJob`/`IgnoredRange`) под единым
+  правом `model_settings:read`/`model_settings:manage`, без отдельных
+  create/update/delete, — по духу похоже на «Конфигурацию доступа». См.
+  «Фаза 5 (админ-настройки модели) — что добавлено» ниже.
+
+Все пять фаз доменного пласта закрыты — все 13 ресурсов из
+`/permissions/me` (см. начало раздела) теперь имеют соответствующее окно в
+workspace.
 
 **Осознанно вне scope на неопределённый срок** (не фаза, а отдельный
 пласт работы): рендер геометрии (`geometryGeoJson`) объектов/пикетов/слоёв
@@ -403,6 +407,48 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
   методов вообще, ручки записи на бэкенде нет и не будет (присутствие
   фиксируется сервером на каждый аутентифицированный запрос).
 
+#### Фаза 5 (админ-настройки модели) — что добавлено
+
+Четыре сущности (`modelVersion`, `coefficient`, `retrainJob`,
+`ignoredRange`), одно окно `ModelSettingsWindow` с четырьмя вкладками
+(`ChipFilterGroup`, тот же приём, что в `AssetsWindow`/`AccessWindow`/
+`PeopleWindow`). Гейтинг единый на все вкладки —
+`usePermission('model_settings', 'manage')` — доступа `create`/`update`
+отдельно не существует, см. доку.
+
+- **Все 4 POST-ручки этого раздела — без описанного тела запроса в доке**
+  (единственный раздел, где это верно сразу для всех эндпоинтов, не только
+  для одного-двух, как в предыдущих фазах). Тело каждого запроса выведено
+  из соответствующего DTO за вычетом серверных полей — то же самое
+  рассуждение, что и для `schedule`/`brigade` в Фазе 4, применено здесь
+  последовательно ко всем четырём. Если бэкенд ждёт другой набор полей —
+  это всегда только `entities/<name>/types.ts`, компоненты не трогать.
+- **`ModelVersionDto.id` — исключение из общего правила «id генерирует
+  бэкенд».** Формулировка «Дубль `id` → `409 duplicate_code`» в доке имеет
+  смысл только если `id` задаёт клиент (человеческая версия вроде `v1.2.3`,
+  не UUID) — иначе дубликат генерируемого id структурно невозможен. Поэтому
+  `CreateModelVersionRequest` включает `id` как обязательное поле, в отличие
+  от `coefficient`/`retrainJob`/`ignoredRange`/`brigade`, где id — обычный
+  сервер-генерируемый.
+- **`coefficientRepository` без `update()` — версионирование, не
+  редактирование.** `POST /coefficients` всегда создаёт новую запись с
+  инкрементированным `version` (см. доку §3); `GET` отдаёт только последнюю
+  версию на каждый `type`. Форма создания в `CoefficientsTab.tsx` поэтому
+  всегда «Сохранить новую версию», не «Изменить», даже если коэффициент
+  этого типа уже есть.
+- **`retrainJobRepository` — только заявка, не запуск.** `POST
+  /retrain-jobs` создаёт запись со `status: "requested"`; сам процесс
+  переобучения делает `tf-model` асинхронно, BFF (и фронт) её не
+  дожидаются и не управляют — нет отмены/повтора с фронта, этого нет в
+  доке. `paramsJson` — сырой JSON-текст без схемы (тот же паттерн, что
+  `geometryGeoJson` у объектов), поэтому `<textarea>`, а не структурная
+  форма.
+- **`IgnoredRangesTab.tsx` показывает поле `objectId`/`sensorId` условно**
+  по выбранному `scope` (`all`/`object`/`sensor`) — по доке они обязательны
+  только при соответствующем значении `scope`, поле для неактуального
+  случая не показывается вовсе (а не «показать оба сразу и понадеяться на
+  бэкенд»).
+
 ## Структура директорий
 
 ```text
@@ -476,9 +522,21 @@ src/
 │   ├── brigade/
 │   │   ├── types.ts
 │   │   └── brigadeRepository.ts       # GET/POST /bff/brigades
-│   └── presence/
+│   ├── presence/
+│   │   ├── types.ts
+│   │   └── presenceRepository.ts      # GET /bff/presence?userIds= — только чтение
+│   ├── modelVersion/
+│   │   ├── types.ts                    # id задаёт клиент, не сервер (см. Фаза 5)
+│   │   └── modelVersionRepository.ts  # GET/POST /bff/model-versions, POST .../activate
+│   ├── coefficient/
+│   │   ├── types.ts
+│   │   └── coefficientRepository.ts   # GET/POST /bff/coefficients — без update(), версионируется
+│   ├── retrainJob/
+│   │   ├── types.ts
+│   │   └── retrainJobRepository.ts    # GET/POST /bff/retrain-jobs — только заявка, не запуск
+│   └── ignoredRange/
 │       ├── types.ts
-│       └── presenceRepository.ts      # GET /bff/presence?userIds= — только чтение
+│       └── ignoredRangeRepository.ts  # GET/POST/DELETE /bff/ignored-ranges[/{id}]
 │
 ├── stores/                  # Zustand — только client state
 │   ├── auth/authStore.ts
@@ -526,13 +584,21 @@ src/
 │   │   ├── IncidentsWindow.tsx          # окно workspace: список + подтверждение
 │   │   ├── incidentLabels.ts             # реэкспорт predictionTypeLabels — тот же PredictionType
 │   │   └── hooks/{useIncidents,useConfirmIncident}.ts
-│   └── people/
-│       ├── PeopleWindow.tsx             # окно workspace: выбор сотрудника + вкладки + presence
-│       ├── ScheduleTab.tsx
-│       ├── AssignedObjectsTab.tsx
-│       ├── EngineerTab.tsx               # профиль инженера (upsert) + список/создание бригад
-│       ├── peopleLabels.ts
-│       └── hooks/{useSchedule,useAssignedObjects,useEngineerProfile,useBrigades,usePresence}.ts
+│   ├── people/
+│   │   ├── PeopleWindow.tsx             # окно workspace: выбор сотрудника + вкладки + presence
+│   │   ├── ScheduleTab.tsx
+│   │   ├── AssignedObjectsTab.tsx
+│   │   ├── EngineerTab.tsx               # профиль инженера (upsert) + список/создание бригад
+│   │   ├── peopleLabels.ts
+│   │   └── hooks/{useSchedule,useAssignedObjects,useEngineerProfile,useBrigades,usePresence}.ts
+│   └── modelSettings/
+│       ├── ModelSettingsWindow.tsx      # окно workspace: 4 вкладки
+│       ├── ModelVersionsTab.tsx
+│       ├── CoefficientsTab.tsx
+│       ├── RetrainJobsTab.tsx
+│       ├── IgnoredRangesTab.tsx
+│       ├── modelSettingsLabels.ts
+│       └── hooks/{useModelVersions,useCoefficients,useRetrainJobs,useIgnoredRanges}.ts
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
 │   ├── workspace/{WorkspaceCanvas,WindowToolbar,useWorkspaceUrlSync}
