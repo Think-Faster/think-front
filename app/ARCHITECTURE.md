@@ -22,7 +22,7 @@
 Это переписано на:
 
 - **Zustand** вместо Context — `stores/auth`, `stores/workspace`;
-- **Repository** вместо прямой мутации моков — `entities/prediction/predictionRepository.ts`;
+- **Repository** вместо прямой мутации моков — например, `entities/user/userRepository.ts`;
 - **Registry** вместо `switch/if по id` — `core/registry/windowRegistry.ts`;
 - **URL-сериализацию workspace** — открытые окна попадают в `?windows=...&active=...`,
   что даёт восстановление layout по прямой ссылке;
@@ -191,20 +191,20 @@ TypeScript не подключался вообще. Все три файла/п
 Помимо RBAC-контура (users/groups/permissions) BFF отдаёт доменный пласт:
 объекты и топология, датчики, прогнозы, заявки и работы, происшествия,
 график/присутствие/инженеры, админ-настройки модели — семь областей. Это
-несопоставимо больше по объёму, чем RBAC, и часть из них (прогнозы) напрямую
-заменяет наш текущий мок. Поэтому интеграция разбита на фазы, а не сделана
-одним заходом:
+несопоставимо больше по объёму, чем RBAC. Поэтому интеграция разбита на
+фазы, а не сделана одним заходом:
 
 - **Фаза 1 — Объекты + Датчики (сделано).** Базовый CRUD по образцу
   Users/Groups.
-- **Фаза 2 — Прогнозы (не сделано).** Перепись `entities/prediction` с мока
-  на реальную модель — самая ценная фаза (это центр текущего UI), но и самая
-  ломающая: реальный `PredictionDto` не совпадает по форме с нашим моком
-  (нет поля `risk`, другой набор статусов, `object`/`segment` замена на
-  `objectId` с резолвом через объекты, `why[]` замена на
-  `factors[]`/`evidence[]`, `rejectReason` замена на `reasonCode`). См.
-  список ниже — что именно уйдёт из `entities/prediction`/`features/predictions`,
-  когда до этой фазы дойдёт очередь.
+- **Фаза 2 — Прогнозы (не сделано).** Мок (`entities/prediction`,
+  `features/predictions`, окна `queue`/`pred`) убран целиком, а не
+  перевезён на реальные данные — см. «Ни одного окна на локальных моках»
+  ниже. Реальный `PredictionDto` в любом случае не совпадает по форме с
+  тем, что было в моке (нет поля `risk`, другой набор статусов,
+  `object`/`segment` заменяются на `objectId` с резолвом через объекты,
+  `why[]` — на `factors[]`/`evidence[]`, `rejectReason` — на `reasonCode`),
+  так что фича собирается заново поверх `entities/object`, а не
+  адаптируется из старого кода.
 - **Фаза 3 — Заявки и работы.** Новая фича с нуля, включая обработку гонки
   `409 task_already_taken` на `POST /tasks/{id}/take`.
 - **Фаза 4 — Происшествия, график/присутствие/инженеры/бригады.** Частично
@@ -283,10 +283,6 @@ src/
 │   └── workspace/workspaceUrlSerializer.ts
 │
 ├── entities/                # доменные сущности: тип + данные + repository
-│   ├── prediction/
-│   │   ├── types.ts
-│   │   ├── mockData.ts
-│   │   └── predictionRepository.ts    # мок (in-memory), пока нет BFF-эндпоинта
 │   ├── user/
 │   │   ├── types.ts
 │   │   └── userRepository.ts          # GET/POST/PUT /bff/users[/{id}]
@@ -314,12 +310,6 @@ src/
 │
 ├── features/                # пользовательские сценарии поверх entities
 │   ├── auth/{LoginForm,UserMenu}.tsx
-│   ├── predictions/
-│   │   ├── PredictionQueueWindow.tsx
-│   │   ├── PredictionDetailWindow.tsx
-│   │   ├── PredictionFilters.tsx
-│   │   ├── predictionLabels.ts
-│   │   └── hooks/{usePredictions,usePrediction}.ts
 │   ├── users/
 │   │   ├── UsersPanel.tsx              # список + форма создания/редактирования
 │   │   ├── UserEditForm.tsx
@@ -346,17 +336,11 @@ src/
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
 │   ├── workspace/{WorkspaceCanvas,WindowToolbar,useWorkspaceUrlSync}
-│   ├── header/AppHeader.tsx
-│   ├── map/MapWidget.tsx
-│   ├── schematic/SchematicWidget.tsx
-│   ├── timeline/TimelineWidget.tsx
-│   ├── objectCard/ObjectCardWidget.tsx
-│   ├── stream/StreamWidget.tsx
-│   └── actionLog/ActionLogWidget.tsx
+│   └── header/AppHeader.tsx
 │
 ├── shared/                  # ничего не знает про backend-сущности
-│   ├── ui/{Button,Badge,ChipFilterGroup,ProgressBar,StatChip,
-│   │        Tag,SensorRow,Breadcrumb,Window,EmptyState}.tsx
+│   ├── ui/{Button,Badge,ChipFilterGroup,StatChip,
+│   │        Breadcrumb,Window,EmptyState}.tsx
 │   └── hooks/{useInterval,useClock,useDismiss}.ts
 │
 └── pages/                   # тонкие точки для роутов
@@ -365,16 +349,16 @@ src/
 ```
 
 Правило простое: если код знает про HTTP/axios — он в `core/api` или
-`entities/*/repository`. Если знает про конкретную сущность (`Prediction`) —
-он в `entities` или `features`. Если это чистая презентация без завязки на
-сущность — он в `shared/ui` или `widgets`.
+`entities/*/repository`. Если знает про конкретную сущность (`User`,
+`MonitoredObject`) — он в `entities` или `features`. Если это чистая
+презентация без завязки на сущность — он в `shared/ui` или `widgets`.
 
 ---
 
 ## Как добавить новый переиспользуемый UI-компонент
 
 Переиспользуемый компонент — это компонент, который ничего не знает про
-`Prediction`, `User` и т.д., принимает всё через props и просто рендерит
+`User`, `MonitoredObject` и т.д., принимает всё через props и просто рендерит
 разметку/стили.
 
 1. Создать файл в `src/shared/ui/MyComponent.tsx`.
@@ -451,9 +435,11 @@ export default function Tooltip({ text, children }: TooltipProps) {
    ```
 
    Пока нет реального backend-эндпоинта — можно сделать репозиторий как
-   `predictionRepository.ts`: in-memory массив + `delay()`, с тем же самым
-   контрактом методов. Когда появится BFF-эндпоинт, меняется только тело
-   методов репозитория — компоненты не трогаются.
+   in-memory массив + `delay()`, с тем же самым контрактом методов (так на
+   время ручной проверки в браузере временно подменялись `userRepository`/
+   `objectRepository` и другие — см. историю коммитов). Когда появится
+   BFF-эндпоинт, меняется только тело методов репозитория — компоненты не
+   трогаются.
 
 3. **Не обращаться к `apiClient`/`axios` напрямую из компонентов** — только
    через repository. Это единственное жёсткое правило слоя `entities`.
@@ -481,16 +467,16 @@ Feature — это то, что видит и с чем взаимодейств
 
 1. Директория `src/features/<feature-name>/`.
 2. Хуки для данных — в `hooks/`, по образцу
-   `features/predictions/hooks/usePredictions.ts`:
+   `features/objects/hooks/useObjects.ts`:
    - хук инкапсулирует вызов repository + локальное состояние (фильтры,
      loading);
    - компонент фичи только рендерит то, что вернул хук.
 3. Презентационные куски, которые можно переиспользовать в рамках фичи
-   (например, панель фильтров), — отдельным файлом
-   (`PredictionFilters.tsx`), а не встроены в один большой компонент.
+   (например, форма редактирования), — отдельным файлом (`ObjectEditForm.tsx`),
+   а не встроены в один большой компонент.
 4. Не создавать отдельный файл на каждую мелочь, если она нигде больше не
-   переиспользуется — как `PredictionDetailWindow.tsx` объединяет разметку
-   карточки прогноза без отдельного `PredictionDetailPanel.tsx`.
+   переиспользуется — как `GroupMembersEditor.tsx` объединяет разметку списка
+   участников и формы добавления без отдельного файла на каждую половину.
 
 Мини-пример фичи `room-status`:
 
@@ -511,8 +497,9 @@ features/room-status/
 1. Сделать сам виджет — presentational-компонент без пропсов (или с
    пропсами, у которых есть дефолты), в `src/widgets/<name>/<Name>Widget.tsx`.
    Если окну нужны данные конкретной сущности — используйте
-   `features/<feature>` компонент вместо чистого widget (как `queue` и `pred`
-   в реестре ссылаются на компоненты из `features/predictions`).
+   `features/<feature>` компонент вместо чистого widget (как `access`,
+   `config` и `assets` в реестре ссылаются на компоненты из
+   `features/access`, `features/config`, `features/assets`).
 
 2. Зарегистрировать окно в `src/core/registry/windowRegistry.ts`:
 
@@ -546,9 +533,9 @@ features/room-status/
 
 - Runtime-состояние UI (открытые окна, авторизация, выбранные фильтры,
   видимость модалки) → Zustand store в `stores/<domain>/`.
-- Данные с backend (список прогнозов, комнат и т.д.) → не в Zustand, а в
-  локальном состоянии хука фичи (`usePredictions`), которое читает из
-  repository. Если проект дорастёт до React Query — этот хук достаточно
+- Данные с backend (список пользователей, объектов и т.д.) → не в Zustand, а
+  в локальном состоянии хука фичи (`useUsers`, `useObjects`), которое читает
+  из repository. Если проект дорастёт до React Query — этот хук достаточно
   переписать внутри, наружу (компоненты) ничего не поменяется.
 
 Пример нового store — по образцу `windowsStore.ts`:
@@ -621,23 +608,22 @@ export const useNotificationsStore = create<NotificationsState>(set => ({
   **Видимость окон workspace, а не только кнопок внутри них.**
   `core/registry/windowRegistry.ts` — у записи реестра есть необязательное
   поле `requiredPermission: { resource, action }[]` (логическое ИЛИ между
-  элементами). `WorkspaceCanvas`/`WindowToolbar` перед рендером каждого окна
-  зовут `isWindowVisible(definition, permissions)` — если требование задано и
-  ни одно право не подтверждено, окно не появляется ни в тулбаре, ни на
-  холсте, независимо от того, что лежит в `windowsStore` (открыто оно там
-  или нет). У `access` (Пользователи и группы) — `requiredPermission: [
-  { resource: 'users', action: 'read' }, { resource: 'groups', action: 'read' }
-  ]`. Записи без `requiredPermission` (все окна на прогнозах — они на
-  локальных моках, не настоящий BFF-ресурс) видны всегда — это единственное
-  исключение, и оно осознанное.
+  элементами, обязательное — см. «Ни одного окна на локальных моках» ниже).
+  `WorkspaceCanvas`/`WindowToolbar` перед рендером каждого окна зовут
+  `isWindowVisible(definition, permissions)` — если ни одно право не
+  подтверждено, окно не появляется ни в тулбаре, ни на холсте, независимо от
+  того, что лежит в `windowsStore` (открыто оно там или нет). У `access`
+  (Пользователи и группы) — `requiredPermission: [{ resource: 'users',
+  action: 'read' }, { resource: 'groups', action: 'read' }]`.
 
   **Важно:** `can()`/`usePermission()`/`requiredPermission` имеет смысл
   только для ресурсов, реально зарегистрированных в BFF (`users`, `groups`,
-  `permissions`, и то, что заведено через `POST /resources`). Гейтить
-  локальные mock-сущности (как раньше `predictions`) через них нельзя — в
-  реальной карте прав просто не будет такого ключа, и UI молча спрячет то,
-  что не должно быть спрятано. `predictions` сейчас ничем не гейтится по
-  этой причине.
+  `permissions`, `objects`, `sensors`, и то, что заведено через
+  `POST /resources`). Заводить окно/раздел на локальной mock-сущности,
+  которой нет в реальной карте прав, и при этом гейтить его через эту
+  функцию — нельзя: реальный `permissions/me` не будет знать такой ресурс, и
+  UI молча спрячет то, что не должно быть спрятано (именно поэтому в
+  проекте больше нет окон без реального ресурса за ними, см. ниже).
 
 ---
 
@@ -669,11 +655,11 @@ export const config = {
 Чтобы не переусложнять то, что реально не нужно на этом этапе (см. §99
 архитектурного документа):
 
-- **Нет `RendererRegistry`/generic `Form`/`Table`.** Единственная сущность
-  сейчас (`Prediction`) отображается кастомными окнами, а не generic CRUD
-  таблицей — schema-driven рендеринг полей появится, когда в проекте будет
-  реальный CRUD-раздел (список/форма редактирования сущности), а не только
-  workspace с мониторингом.
+- **Нет `RendererRegistry`/generic `Form`/`Table`.** Каждый CRUD-раздел
+  (users/groups/objects/sensors) — свои `*Panel.tsx`/`*EditForm.tsx` по
+  единому паттерну, а не generic-рендер по схеме поля. Schema-driven
+  рендеринг стоит заводить, когда однотипных разделов станет действительно
+  много и копипаста между ними станет заметна, а не заранее.
 - **Нет `SectionRegistry`.** Пока в приложении один "раздел" — workspace.
   Когда появится второй маршрут верхнего уровня со своим набором прав и
   своим меню (не окно внутри workspace, а отдельная страница), стоит завести
@@ -686,7 +672,19 @@ export const config = {
   не реализованы — не было в задаче. Список, создание, редактирование
   пользователя (включая `authUserId`) и управление составом группы (и
   пользователи, и вложенные группы) — есть.
-- **Нет React Query.** Хуки фич (`usePredictions`, `usePrediction`) сделаны
+- **Нет React Query.** Хуки фич (`useUsers`, `useObjects` и т.д.) сделаны
   вручную поверх repository. Добавлять React Query стоит, когда появится
   реальная надобность в кэшировании/инвалидации между независимыми частями
   экрана, а не заранее.
+- **Нет ни одного окна на локальных моках.** Раньше workspace был наполовину
+  демо-прототипом (прогнозы, карта, схема объекта, поток данных, журнал
+  действий — всё захардкожено, без единого реального эндпоинта). Убраны
+  целиком: `entities/prediction`, `features/predictions`,
+  `widgets/{map,schematic,timeline,objectCard,stream,actionLog}`, плюс
+  осиротевшие после этого `shared/ui/{SensorRow,ProgressBar,Tag}` и маршрут
+  `/predictions/:id`. Все три оставшихся окна (`access`/`config`/`assets`)
+  реально ходят в BFF, и `WindowDefinition.requiredPermission` стал
+  обязательным полем (раньше было опциональным — «не задано» означало «окно
+  на моках, видно всегда»; такого случая больше нет). Если понадобится
+  окно-демка для разработки без бэкенда — заводить его отдельно и осознанно,
+  а не оставлять по умолчанию.
