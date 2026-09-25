@@ -65,5 +65,15 @@ export const endpoints = {
     userEngineerProfile: (userId: string) => `/bff/users/${userId}/engineer-profile`,
     presence: '/bff/presence',
     brigades: '/bff/brigades',
+    modelVersions: {
+      list: '/bff/model-versions',
+      activate: (id: string) => `/bff/model-versions/${id}/activate`,
+    },
+    coefficients: '/bff/coefficients',
+    retrainJobs: '/bff/retrain-jobs',
+    ignoredRanges: {
+      list: '/bff/ignored-ranges',
+      byId: (id: string) => `/bff/ignored-ranges/${id}`,
+    },
   },
 } as const;
