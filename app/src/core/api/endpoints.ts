@@ -34,5 +34,10 @@ export const endpoints = {
       list: '/bff/sensors',
       byId: (id: number) => `/bff/sensors/${id}`,
     },
+    predictions: {
+      list: '/bff/predictions',
+      byId: (id: string) => `/bff/predictions/${id}`,
+      decisions: (id: string) => `/bff/predictions/${id}/decisions`,
+    },
   },
 } as const;

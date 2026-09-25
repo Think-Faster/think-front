@@ -81,6 +81,25 @@ button {
   color: inherit;
 }
 
+/* Базовый вид для select вне .login-form (например, фильтры в .win-toolbar)
+   — .login-form select ниже специфичнее и переопределяет паддинг/т.п. там,
+   где он есть. */
+select {
+  padding: 6px 8px;
+
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+
+  background: var(--bg);
+  color: var(--text);
+
+  outline: none;
+}
+
+select:focus {
+  border-color: var(--cyan);
+}
+
 a {
   color: inherit;
   text-decoration: none;
