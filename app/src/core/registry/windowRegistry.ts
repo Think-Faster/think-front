@@ -6,6 +6,8 @@ import AssetsWindow from '../../features/assets/AssetsWindow';
 import ConfigWindow from '../../features/config/ConfigWindow';
 import PredictionDetailWindow from '../../features/predictions/PredictionDetailWindow';
 import PredictionQueueWindow from '../../features/predictions/PredictionQueueWindow';
+import TaskDetailWindow from '../../features/tasks/TaskDetailWindow';
+import TaskQueueWindow from '../../features/tasks/TaskQueueWindow';
 
 export interface WindowDefaultView {
   x: number;
@@ -95,5 +97,19 @@ export const windowRegistry: WindowDefinition[] = [
       { resource: 'objects', action: 'read' },
       { resource: 'sensors', action: 'read' },
     ],
+  },
+  {
+    id: 'taskQueue',
+    title: 'Очередь заявок',
+    component: TaskQueueWindow,
+    defaultView: { x: 1180, y: 20, width: 320, height: 480, open: false, z: 15 },
+    requiredPermission: [{ resource: 'tasks', action: 'read' }],
+  },
+  {
+    id: 'taskDetail',
+    title: 'Карточка заявки',
+    component: TaskDetailWindow,
+    defaultView: { x: 1180, y: 520, width: 380, height: 560, open: false, z: 16 },
+    requiredPermission: [{ resource: 'tasks', action: 'read' }],
   },
 ];
