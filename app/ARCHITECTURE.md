@@ -217,11 +217,9 @@ TypeScript не подключался вообще. Все три файла/п
 - **Фаза 3 — Заявки и работы (сделано).** Новая фича с нуля, включая
   обработку гонки `409 task_already_taken` на `POST /tasks/{id}/take`. См.
   «Фаза 3 (заявки и работы) — что добавлено» ниже.
-- **Фаза 4 — Происшествия, график/присутствие/инженеры/бригады.** Частично
-  ложится как расширение `entities/user` (свои вкладки/ручки на
-  `/users/{id}/...`), частично — новые лёгкие сущности (`brigade`).
-  `/presence` — только чтение, ручки записи нет и не будет (бэкенд сам
-  фиксирует присутствие на каждый запрос).
+- **Фаза 4 — Происшествия, график/присутствие/инженеры/бригады (сделано).**
+  Пять сущностей за один заход — объём как у Фазы 1–3 вместе, но каждая
+  по отдельности небольшая. См. «Фаза 4 (люди) — что добавлено» ниже.
 - **Фаза 5 — Админ-настройки модели.** Новая фича по духу похожая на
   «Конфигурацию доступа» (`ModelVersion`/`Coefficient`/`RetrainJob`/
   `IgnoredRange`, единое право `model_settings:read`/`model_settings:manage`
@@ -353,6 +351,58 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
   (которая по-прежнему на `read`, см. правило видимости выше) — она про
   состояние конкретной заявки, а не про доступ к разделу.
 
+#### Фаза 4 (люди) — что добавлено
+
+Пять сущностей: `incident`, `schedule`, `assignedObject`, `engineer` (+
+`brigade`), `presence`. Собраны в два окна workspace, не пять — `incidents`
+(список происшествий с подтверждением) и `people` (выбор сотрудника + три
+вкладки: График/Объекты/Инженер), по аналогии с `AssetsWindow`/`AccessWindow`
+(вкладки поверх общего выбора, не отдельное окно на каждый ресурс).
+
+- **`incidentRepository` без `create()`** — как и у `predictionRepository`
+  (Фаза 2): `POST /incidents` в доке — единственная POST-ручка доменного
+  пласта без описанного тела запроса (у всех остальных оно либо показано
+  инлайн в таблице эндпоинтов, либо есть отдельный `Create*Request`-тип).
+  Происшествие по смыслу — подтверждённое событие, которое логично рождается
+  из прогноза/факта на бэкенде, а не заводится вручную. Реализовано только
+  `getList`/`get`/`confirm` (`POST /incidents/{id}/confirm`, тело `{
+  outcome? }` — документировано явно). `outcome` — текстовое поле, не select
+  (не перечислен как закрытый список, тот же принцип, что у `reasonCode`
+  прогнозов и `resultCode` заявок).
+- **`CreateScheduleEntryRequest` — предположение, явно помечено в коде.**
+  `POST /users/{id}/schedule` — вторая (и последняя) POST-ручка без
+  описанного тела в доке. В отличие от происшествий, график — однозначно
+  человеческий сценарий (диспетчер/админ ставит смену инженеру), без формы
+  создания фича была бы бесполезной, поэтому тело запроса выведено из
+  `ScheduleEntryDto` за вычетом серверных полей (`id`/`changedBy`/
+  `changedAt`): `{ dateFrom, dateTo, status, source? }`. Если бэкенд ждёт
+  другой набор полей — это единственное место, которое надо поправить
+  (`entities/schedule/types.ts`), сами компоненты не тронуть.
+- **`CreateBrigadeRequest` выведен по общему правилу, не угадан с нуля.**
+  `BrigadeDto.id` нигде не помечен как внешний (в отличие от `ObjectDto.id`/
+  `SensorDto.id`, где это явно оговорено) — значит генерируется бэкендом по
+  умолчанию, и тело `POST /brigades` — просто `{ name }`.
+- **`engineerRepository.get()` — 404 не ошибка, а нормальный ответ.**
+  `GET /users/{id}/engineer-profile` документированно возвращает `404`, если
+  профиля ещё нет. Репозиторий пробрасывает исключение как есть (не глотает
+  и не превращает в `null` сам) — `useEngineerProfile.ts` разбирает код
+  через `parseBffError` и трактует `not_found` как «профиля нет», а не как
+  сбой сети. `EngineerTab.tsx` при этом сам решает, показывать форму
+  «Создать профиль» или «Изменить профиль» — `PUT` на этом эндпоинте upsert,
+  один и тот же вызов `save()` работает для обоих случаев.
+- **`specialization: string[]` — поле через запятую, не мультиселект.**
+  Как и с `resultCode`/`outcome`, значения нигде не перечислены как закрытый
+  список — `EngineerTab.tsx` хранит их в форме одной строкой и
+  разбирает/собирает через `.split(',')`/`.join(', ')` на границе с
+  repository, а не заводит фейковый enum.
+- **`usePresence(userId)` — под конкретного выбранного сотрудника,** не
+  список всех: `GET /presence?userIds=` вызывается с одним id, а не грузит
+  всех и не фильтрует на фронте — тот же принцип, что у `SensorsPanel`
+  (фильтр `objectId` уходит в запрос, а не постфильтром).
+- **`/presence` целиком read-only** — `presenceRepository` не имеет write-
+  методов вообще, ручки записи на бэкенде нет и не будет (присутствие
+  фиксируется сервером на каждый аутентифицированный запрос).
+
 ## Структура директорий
 
 ```text
@@ -408,9 +458,27 @@ src/
 │   ├── object/
 │   │   ├── types.ts                    # MonitoredObject (не Object!)
 │   │   └── objectRepository.ts        # GET/POST/PUT /bff/objects[/{id}] — без pickets/layers
-│   └── sensor/
+│   ├── sensor/
+│   │   ├── types.ts
+│   │   └── sensorRepository.ts        # GET/POST/PUT /bff/sensors[/{id}] — без links
+│   ├── incident/
+│   │   ├── types.ts
+│   │   └── incidentRepository.ts      # GET /bff/incidents[/{id}], POST .../confirm — без create()
+│   ├── schedule/
+│   │   ├── types.ts                    # ScheduleEntry, тело create — предположение (см. Фаза 4)
+│   │   └── scheduleRepository.ts      # GET/POST/DELETE /bff/users/{id}/schedule[/{entryId}]
+│   ├── assignedObject/
+│   │   ├── types.ts
+│   │   └── assignedObjectRepository.ts # GET/POST/DELETE /bff/users/{id}/assigned-objects[/{objectId}]
+│   ├── engineer/
+│   │   ├── types.ts                    # EngineerProfile
+│   │   └── engineerRepository.ts      # GET/PUT /bff/users/{id}/engineer-profile — upsert, 404 = профиля нет
+│   ├── brigade/
+│   │   ├── types.ts
+│   │   └── brigadeRepository.ts       # GET/POST /bff/brigades
+│   └── presence/
 │       ├── types.ts
-│       └── sensorRepository.ts        # GET/POST/PUT /bff/sensors[/{id}] — без links
+│       └── presenceRepository.ts      # GET /bff/presence?userIds= — только чтение
 │
 ├── stores/                  # Zustand — только client state
 │   ├── auth/authStore.ts
@@ -449,11 +517,22 @@ src/
 │   │   ├── SensorEditForm.tsx
 │   │   └── hooks/{useSensors,useCreateSensor,useUpdateSensor}.ts
 │   ├── assets/AssetsWindow.tsx          # окно workspace: вкладки Объекты/Датчики
-│   └── tasks/
-│       ├── TaskQueueWindow.tsx          # окно workspace: очередь + фильтры + создание
-│       ├── TaskDetailWindow.tsx          # окно workspace: карточка, читает :id из URL
-│       ├── taskLabels.ts
-│       └── hooks/{useTasks,useCreateTask,useTask}.ts
+│   ├── tasks/
+│   │   ├── TaskQueueWindow.tsx          # окно workspace: очередь + фильтры + создание
+│   │   ├── TaskDetailWindow.tsx          # окно workspace: карточка, читает :id из URL
+│   │   ├── taskLabels.ts
+│   │   └── hooks/{useTasks,useCreateTask,useTask}.ts
+│   ├── incidents/
+│   │   ├── IncidentsWindow.tsx          # окно workspace: список + подтверждение
+│   │   ├── incidentLabels.ts             # реэкспорт predictionTypeLabels — тот же PredictionType
+│   │   └── hooks/{useIncidents,useConfirmIncident}.ts
+│   └── people/
+│       ├── PeopleWindow.tsx             # окно workspace: выбор сотрудника + вкладки + presence
+│       ├── ScheduleTab.tsx
+│       ├── AssignedObjectsTab.tsx
+│       ├── EngineerTab.tsx               # профиль инженера (upsert) + список/создание бригад
+│       ├── peopleLabels.ts
+│       └── hooks/{useSchedule,useAssignedObjects,useEngineerProfile,useBrigades,usePresence}.ts
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
 │   ├── workspace/{WorkspaceCanvas,WindowToolbar,useWorkspaceUrlSync}
