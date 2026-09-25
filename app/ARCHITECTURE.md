@@ -208,15 +208,12 @@ TypeScript не подключался вообще. Все три файла/п
 
 - **Фаза 1 — Объекты + Датчики (сделано).** Базовый CRUD по образцу
   Users/Groups.
-- **Фаза 2 — Прогнозы (не сделано).** Мок (`entities/prediction`,
-  `features/predictions`, окна `queue`/`pred`) убран целиком, а не
-  перевезён на реальные данные — см. «Ни одного окна на локальных моках»
-  ниже. Реальный `PredictionDto` в любом случае не совпадает по форме с
-  тем, что было в моке (нет поля `risk`, другой набор статусов,
+- **Фаза 2 — Прогнозы (сделано).** Собрана заново поверх `entities/object`,
+  а не адаптирована из старого мока — реальный `PredictionDto` не совпадает
+  по форме с тем, что было раньше (нет поля `risk`, другой набор статусов,
   `object`/`segment` заменяются на `objectId` с резолвом через объекты,
-  `why[]` — на `factors[]`/`evidence[]`, `rejectReason` — на `reasonCode`),
-  так что фича собирается заново поверх `entities/object`, а не
-  адаптируется из старого кода.
+  `why[]` — на `factors[]`/`evidence[]`, `rejectReason` — на `reasonCode`).
+  См. «Фаза 2 (прогнозы) — что добавлено» ниже.
 - **Фаза 3 — Заявки и работы.** Новая фича с нуля, включая обработку гонки
   `409 task_already_taken` на `POST /tasks/{id}/take`.
 - **Фаза 4 — Происшествия, график/присутствие/инженеры/бригады.** Частично
@@ -236,8 +233,9 @@ TypeScript не подключался вообще. Все три файла/п
 GeoJSON, следующий уровень поверх CRUD. `entities/object`/`entities/sensor`
 сознательно не включают `/objects/{id}/pickets`, `/objects/{id}/layers`,
 `/sensors/{id}/links` по этой же причине. Аналогично живые показания
-датчиков (`StreamWidget`) — `SensorDto` не хранит текущее значение, это
-снимок потока `tf-funnel`, которого пока нет; менять там нечего.
+датчиков — `SensorDto` не хранит текущее значение, это снимок потока
+`tf-funnel`, которого пока нет; отдельного окна с live-потоком сейчас
+не заводили именно поэтому.
 
 #### Фаза 1 (объекты + датчики) — что добавлено
 
@@ -260,6 +258,48 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
   `objects:read` ИЛИ `sensors:read`.
 - Новая CSS-необходимость: `.login-form textarea` (поле «Геометрия
   (GeoJSON)» — просто хранит сырой текст, без валидации/рендера).
+
+#### Фаза 2 (прогнозы) — что добавлено
+
+- `entities/prediction` пересобран с нуля под реальный `PredictionDto`:
+  `PredictionListItem`/`Prediction`/`PredictionDecision`. Ключевые отличия
+  от старого мока:
+  - нет поля `risk` — тон бейджа/акцентной полоски (`risk-high/med/low`,
+    переиспользованы старые CSS-классы) считается из `probability` через
+    `probabilityTone()` в `features/predictions/predictionLabels.ts`
+    (пороги 0.75/0.4 — на глаз, не калиброваны под проект, если появится
+    осмысленная шкала — менять только там);
+  - `objectId: number` вместо строк `object`/`segment` — имя объекта
+    резолвится через уже готовый `entities/object` (`useObjects()`
+    вызывается и в очереди, и в карточке);
+  - `why: string[]` заменён на `factors: PredictionFactorDto[]` +
+    `evidence: PredictionEvidenceDto[]` — другой рендер (список
+    `feature/value/weight/direction`, evidence сейчас не выводится за
+    ненадобностью, но в типе есть).
+  - `predictionRepository` **не имеет `create()`** — по докам прогноз в
+    норме создаёт модель через Kafka-consumer, а не человек через форму;
+    `POST /predictions` на бэкенде существует, но раз это не типовой сценарий
+    в UI диспетчера — не оборачиваем его без явной необходимости.
+- **Решения** (`take`/`reject`/`mute`/`reopen`) — `POST
+  /predictions/{id}/decisions`, `usePrediction.ts` → `decide()`. `reject`
+  требует `reasonCode` на бэкенде, но валидные коды нигде не перечислены (в
+  отличие от `PredictionType`/`PredictionStatus`) — форма отказа берёт код
+  обычным текстовым полем, а не select с угаданными вариантами: не гадать
+  закрытый список значений, если бэкенд его не перечисляет явно.
+- **Два окна, не одно** — `queue` (`PredictionQueueWindow`, список + фильтры)
+  и `pred` (`PredictionDetailWindow`, карточка выбранного). В отличие от
+  Users/Groups/Objects/Sensors (где редактирование — админский сценарий,
+  вкладка/инлайн-форма достаточно), здесь это основной рабочий экран
+  диспетчера: очередь и карточка должны быть видны одновременно, поэтому —
+  как и в исходном прототипе — два отдельных окна, синхронизированных через
+  `/predictions/:id` (маршрут восстановлен в `AppRoutes.tsx`) и
+  `useParams()` внутри `PredictionDetailWindow`, а не через локальный
+  `useState` в общем родителе.
+- `shared/ui/ProgressBar.tsx` — восстановлен (был удалён вместе со старым
+  мок-виджетом, снова нужен для вероятности в карточке прогноза).
+- Глобальный `select { ... }` в `styles/index.css` (до этого стилизация
+  была только у `.login-form select`) — понадобился для фильтра «Объект» в
+  `PredictionFilters.tsx`, который живёт в `.win-toolbar`, а не в форме.
 
 ## Структура директорий
 
@@ -295,6 +335,9 @@ src/
 │   └── workspace/workspaceUrlSerializer.ts
 │
 ├── entities/                # доменные сущности: тип + данные + repository
+│   ├── prediction/
+│   │   ├── types.ts
+│   │   └── predictionRepository.ts    # GET /bff/predictions[/{id}], POST .../decisions — без create()
 │   ├── user/
 │   │   ├── types.ts
 │   │   └── userRepository.ts          # GET/POST/PUT /bff/users[/{id}]
@@ -322,6 +365,12 @@ src/
 │
 ├── features/                # пользовательские сценарии поверх entities
 │   ├── auth/{LoginForm,UserMenu}.tsx
+│   ├── predictions/
+│   │   ├── PredictionQueueWindow.tsx      # окно workspace: очередь + фильтры
+│   │   ├── PredictionDetailWindow.tsx      # окно workspace: карточка, читает :id из URL
+│   │   ├── PredictionFilters.tsx
+│   │   ├── predictionLabels.ts
+│   │   └── hooks/{usePredictions,usePrediction}.ts
 │   ├── users/
 │   │   ├── UsersPanel.tsx              # список + форма создания/редактирования
 │   │   ├── UserEditForm.tsx
@@ -351,7 +400,7 @@ src/
 │   └── header/AppHeader.tsx
 │
 ├── shared/                  # ничего не знает про backend-сущности
-│   ├── ui/{Button,Badge,ChipFilterGroup,StatChip,
+│   ├── ui/{Button,Badge,ChipFilterGroup,ProgressBar,StatChip,
 │   │        Breadcrumb,Window,EmptyState}.tsx
 │   └── hooks/{useInterval,useClock,useDismiss}.ts
 │
@@ -694,9 +743,10 @@ export const config = {
   целиком: `entities/prediction`, `features/predictions`,
   `widgets/{map,schematic,timeline,objectCard,stream,actionLog}`, плюс
   осиротевшие после этого `shared/ui/{SensorRow,ProgressBar,Tag}` и маршрут
-  `/predictions/:id`. Все три оставшихся окна (`access`/`config`/`assets`)
-  реально ходят в BFF, и `WindowDefinition.requiredPermission` стал
-  обязательным полем (раньше было опциональным — «не задано» означало «окно
-  на моках, видно всегда»; такого случая больше нет). Если понадобится
+  `/predictions/:id`. Оставшиеся окна (`access`/`config`/`assets` на тот
+  момент, позже вернулись `queue`/`pred` — уже на реальном `PredictionDto`,
+  см. «Фаза 2» выше) реально ходят в BFF, и `WindowDefinition.requiredPermission`
+  стал обязательным полем (раньше было опциональным — «не задано» означало
+  «окно на моках, видно всегда»; такого случая больше нет). Если понадобится
   окно-демка для разработки без бэкенда — заводить его отдельно и осознанно,
   а не оставлять по умолчанию.
