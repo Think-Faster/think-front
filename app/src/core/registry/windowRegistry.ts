@@ -29,6 +29,15 @@ export interface WindowDefinition {
   // есть хотя бы одно из перечисленных прав (логическое ИЛИ). Если когда-то
   // появится окно на локальных моках без реального ресурса за ним — это
   // поле можно сделать необязательным снова (было так раньше).
+  //
+  // Действие здесь всегда 'read' (видимость раздела = есть доступ на
+  // просмотр), даже если внутри окна есть более строгие операции
+  // (create/update/manage) — их гейтит сам компонент окна через
+  // usePermission()/can() по месту (см. ConfigWindow: видно всем с
+  // permissions:read, кнопки редактирования — только с permissions:manage).
+  // Не сужай requiredPermission до более высокого права ради "заодно
+  // спрятать кнопки" — тогда пользователи с одним read вообще не увидят
+  // раздел.
   requiredPermission: WindowPermissionRequirement[];
 }
 
@@ -59,7 +68,7 @@ export const windowRegistry: WindowDefinition[] = [
     title: 'Конфигурация доступа',
     component: ConfigWindow,
     defaultView: { x: 460, y: 20, width: 480, height: 480, open: false, z: 11 },
-    requiredPermission: [{ resource: 'permissions', action: 'manage' }],
+    requiredPermission: [{ resource: 'permissions', action: 'read' }],
   },
   {
     id: 'assets',
