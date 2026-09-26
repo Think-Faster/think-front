@@ -1,0 +1,19 @@
+services:
+
+  tf-front:
+    container_name: tf-front
+    
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+
+    restart: unless-stopped
+
+    networks:
+      - think-fast-net
+
+networks:
+  think-fast-net:
+    external: true
