@@ -8,8 +8,17 @@ import { useSelectionStore } from '../../stores/selection/selectionStore';
 import { useObjects } from '../objects/hooks/useObjects';
 import { City } from './city';
 import CityLayer from './CityLayer';
-import { buildCollector, buildSchema, CollectorModel, fallbackSystem, SchemaModel, systemByName, systems } from './collector';
-import { Box, boundsOf, lineLength, lines, linePath, midpoint, nearestOnLines, point, Pt } from './geo';
+import {
+  buildCollector,
+  buildSchema,
+  CollectorModel,
+  fallbackSystem,
+  SchemaModel,
+  SchemaSlot,
+  systemByName,
+  systems,
+} from './collector';
+import { Box, boundsOf, lineLength, lines, linePath, midpoint, point, Pt } from './geo';
 import { useMapLayer } from './hooks/useMapLayers';
 import MapInfoCard, { CityTrace, InfoTarget } from './MapInfoCard';
 import { useMapRequest } from './mapRequest';
@@ -35,6 +44,24 @@ interface CityBase {
   at: Pt;
 }
 
+// Кадр в пределах города: не отдаляться дальше, чем город помещается в окно,
+// и не уводить его за край — граница сгенерированного города не видна.
+function clampView(box: Box, size: { w: number; h: number }, area: Box | null, minWidth: number): Box {
+  let unit = Math.max(box.w / size.w, box.h / size.h, minWidth / size.w);
+  if (area) {
+    unit = Math.min(unit, area.w / size.w, area.h / size.h);
+  }
+  const w = size.w * unit;
+  const h = size.h * unit;
+  let cx = box.x + box.w / 2;
+  let cy = box.y + box.h / 2;
+  if (area) {
+    cx = Math.min(Math.max(cx, area.x + w / 2), area.x + area.w - w / 2);
+    cy = Math.min(Math.max(cy, area.y + h / 2), area.y + area.h - h / 2);
+  }
+  return { x: cx - w / 2, y: cy - h / 2, w, h };
+}
+
 function niceStep(raw: number): number {
   for (const step of [1, 2, 5, 10, 20, 25, 50, 100, 200, 500]) {
     if (step >= raw) {
@@ -49,8 +76,9 @@ function niceStep(raw: number): number {
 //   значок состояния на каждом; клик — провалиться в коллектор;
 // — карта объекта: тот же город крупно, коридоры коллектора и ответвления
 //   пунктиром, участки цветом состояния, входы (люки), ДП и шкафы;
-// — схема: принципиальная схема коллектора — коридоры прямыми, пикеты,
-//   датчики по подсистемам и их связь с пикетами и участками.
+// — схема: коллектор в своей настоящей форме без города — пикеты узлами,
+//   соединёнными линиями, датчики по подсистемам вокруг своих пикетов,
+//   участки полосами цветом состояния.
 // Клик по любому объекту открывает карточку сведений (MapInfoCard).
 export default function MapWindow() {
   const { objects, loading: objectsLoading, error: objectsError } = useObjects();
@@ -76,7 +104,6 @@ export default function MapWindow() {
   const cityLayer = useMapLayer(district?.id ?? null, 1);
   const l2 = useMapLayer(collectorId, 2);
   const l3 = useMapLayer(collectorId, 3);
-  const l4 = useMapLayer(mode === 'schema' ? collectorId : null, 4);
 
   const { city, cityTraces, cityBases } = useMemo(() => {
     let outline: Pt[] | null = null;
@@ -107,7 +134,7 @@ export default function MapWindow() {
   }, [cityLayer.features]);
 
   const collector = useMemo(() => buildCollector(l2.features, l3.features), [l2.features, l3.features]);
-  const schema = useMemo(() => buildSchema(l4.features), [l4.features]);
+  const schema = useMemo(() => buildSchema(collector), [collector]);
 
   // Идут работы: заявки, по которым инженер уже на объекте.
   const [works, setWorks] = useState<Set<number>>(new Set());
@@ -166,14 +193,40 @@ export default function MapWindow() {
     if (mode === 'city') {
       return boundsOf(cityTraces.flatMap(trace => trace.lines), 0.06);
     }
-    if (mode === 'object') {
-      return collector.bounds;
-    }
-    return schema.bounds;
-  }, [mode, cityTraces, collector.bounds, schema.bounds]);
+    return collector.bounds;
+  }, [mode, cityTraces, collector.bounds]);
 
-  const [box, setBox] = useState<Box | null>(null);
+  const [rawBox, setRawBox] = useState<Box | null>(null);
   const fittedRef = useRef('');
+
+  const limitsRef = useRef({ size, area: null as Box | null, min: 70, max: 60000 });
+  limitsRef.current = {
+    size,
+    area: mode !== 'schema' ? city?.area ?? null : null,
+    min: mode === 'schema' ? 25 : 70,
+    max: mode === 'schema' && contentBounds ? Math.max(contentBounds.w, contentBounds.h) * 3 : Infinity,
+  };
+  const limit = useCallback((next: Box): Box => {
+    const { size: frame, area, min, max } = limitsRef.current;
+    const clamped = clampView(next, frame, area, min);
+    if (clamped.w <= max) {
+      return clamped;
+    }
+    const k = max / clamped.w;
+    const cx = clamped.x + clamped.w / 2;
+    const cy = clamped.y + clamped.h / 2;
+    return { x: cx - (clamped.w * k) / 2, y: cy - (clamped.h * k) / 2, w: clamped.w * k, h: clamped.h * k };
+  }, []);
+  const setBox = useCallback(
+    (next: Box | null | ((current: Box | null) => Box | null)) =>
+      setRawBox(current => {
+        const value = typeof next === 'function' ? next(current ? limit(current) : current) : next;
+        return value ? limit(value) : value;
+      }),
+    [limit]
+  );
+  // при смене окна или режима кадр снова вписываем в пределы
+  const box = rawBox ? limit(rawBox) : null;
   const fitKey = mode === 'city' ? 'city' : `${mode}:${collectorId}`;
 
   useEffect(() => {
@@ -181,7 +234,7 @@ export default function MapWindow() {
       fittedRef.current = fitKey;
       setBox(contentBounds);
     }
-  }, [fitKey, contentBounds]);
+  }, [fitKey, contentBounds, setBox]);
 
   // Приблизить к объекту: «показать на карте», переход из заявки.
   useEffect(() => {
@@ -196,7 +249,7 @@ export default function MapWindow() {
       setBox({ x: bounds.x + bounds.w / 2 - w / 2, y: bounds.y + bounds.h / 2 - h / 2, w: w * 1.6, h });
     }
     setFocus(null);
-  }, [focus, mode, collector.bounds, fitKey]);
+  }, [focus, mode, collector.bounds, fitKey, setBox]);
 
   // Фокус на участке ждёт, пока загрузится слой его коллектора.
   useEffect(() => {
@@ -223,23 +276,19 @@ export default function MapWindow() {
       }
     : null;
 
-  const limitsRef = useRef({ min: 60, max: 60000 });
-  limitsRef.current = {
-    min: mode === 'schema' ? 25 : 70,
-    max: contentBounds ? Math.max(contentBounds.w, contentBounds.h) * 3 : 60000,
-  };
-
-  const zoomAt = useCallback((factor: number, fx = 0.5, fy = 0.5) => {
-    setBox(current => {
-      if (!current) {
-        return current;
-      }
-      const { min, max } = limitsRef.current;
-      const w = Math.min(Math.max(current.w * factor, min), max);
-      const h = (w / current.w) * current.h;
-      return { x: current.x + (current.w - w) * fx, y: current.y + (current.h - h) * fy, w, h };
-    });
-  }, []);
+  const zoomAt = useCallback(
+    (factor: number, fx = 0.5, fy = 0.5) => {
+      setBox(current => {
+        if (!current) {
+          return current;
+        }
+        const w = current.w * factor;
+        const h = current.h * factor;
+        return { x: current.x + (current.w - w) * fx, y: current.y + (current.h - h) * fy, w, h };
+      });
+    },
+    [setBox]
+  );
 
   const hasBox = box !== null;
   useEffect(() => {
@@ -407,8 +456,8 @@ export default function MapWindow() {
 
   const current = collectorId !== null ? byId.get(collectorId) : undefined;
   const loading =
-    cityLayer.loading || (mode !== 'city' && (l2.loading || l3.loading)) || (mode === 'schema' && l4.loading);
-  const error = cityLayer.error || (mode !== 'city' ? l2.error || l3.error : '') || (mode === 'schema' ? l4.error : '');
+    cityLayer.loading || (mode !== 'city' && (l2.loading || l3.loading));
+  const error = cityLayer.error || (mode !== 'city' ? l2.error || l3.error : '');
 
   return (
     <div className="map">
@@ -961,145 +1010,259 @@ interface SchemaOverlayProps {
   onInfo: (target: InfoTarget) => void;
 }
 
+// Пороги схемы — в метрах на экранный пиксель.
+const SCHEMA_LOD = {
+  sensors: 1.2, // датчики точками вокруг пикетов
+  letters: 0.45, // датчики значками с буквой подсистемы
+  entrances: 6, // входы
+  entranceNames: 1.6,
+};
+
+// Линия, сдвинутая вбок на d метров (по нормали в каждой точке).
+function offsetLine(points: Pt[], d: number): Pt[] {
+  if (d === 0) {
+    return points;
+  }
+  return points.map((p, k) => {
+    const a = points[Math.max(0, k - 1)];
+    const b = points[Math.min(points.length - 1, k + 1)];
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const length = Math.hypot(dx, dy) || 1;
+    return [p[0] - (dy / length) * d, p[1] + (dx / length) * d];
+  });
+}
+
+function overlaps(a: Box, b: Box): boolean {
+  return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h;
+}
+
 function SchemaOverlay({ schema, model, byId, works, unit, view, info, onObject, onInfo }: SchemaOverlayProps) {
-  const corridorLines = useMemo(() => schema.corridors.map(corridor => corridor.points), [schema.corridors]);
-
-  // участок на схеме — рамка от первого до последнего его датчика
+  // Участки-перегоны — полосой вдоль коридора. Полосы, которые лежат на
+  // одном перегоне, разводим по дорожкам: 0, +1, −1, +2…
   const bands = useMemo(() => {
-    const ranges = new Map<number, { x0: number; x1: number; y0: number; y1: number }>();
-    for (const sensor of schema.sensors) {
-      const objectId = model.sensorById.get(sensor.id)?.objectId;
-      if (objectId === null || objectId === undefined) {
-        continue;
-      }
-      const range = ranges.get(objectId);
-      const [x, y] = sensor.at;
-      if (range) {
-        range.x0 = Math.min(range.x0, x);
-        range.x1 = Math.max(range.x1, x);
-        range.y0 = Math.min(range.y0, y);
-        range.y1 = Math.max(range.y1, y);
-      } else {
-        ranges.set(objectId, { x0: x, x1: x, y0: y, y1: y });
-      }
+    const lines = model.parts
+      .flatMap(part => (part.line && part.line.length > 1 ? [{ part, line: part.line }] : []))
+      .sort((a, b) => lineLength(b.line) - lineLength(a.line));
+    const placed: { lane: number; box: Box }[] = [];
+    return lines.map(({ part, line }) => {
+      const box = boundsOf([line], 0) ?? { x: line[0][0], y: line[0][1], w: 0, h: 0 };
+      const free = (lane: number) => !placed.some(other => other.lane === lane && overlaps(other.box, box));
+      const lane = [0, 1, -1, 2, -2, 3, -3, 4, -4].find(free) ?? 0;
+      placed.push({ lane, box });
+      return { part, line, lane };
+    });
+  }, [model.parts]);
+
+  // точечные объекты (ДП, шкафы): несколько в одной точке (или у начала
+  // полосы) — подписи столбиком
+  const points = useMemo(() => {
+    const bucket = ([x, y]: Pt) => `${Math.round(x / 25)}:${Math.round(y / 25)}`;
+    const seen = new Map<string, number>();
+    for (const { line } of bands) {
+      seen.set(bucket(line[0]), (seen.get(bucket(line[0])) ?? 0) + 1);
     }
-    return Array.from(ranges.entries()).sort((a, b) => b[1].x1 - b[1].x0 - (a[1].x1 - a[1].x0));
-  }, [schema.sensors, model.sensorById]);
+    return model.parts
+      .filter(part => !part.line || part.line.length < 2)
+      .map(part => {
+        const key = bucket(part.at);
+        const row = seen.get(key) ?? 0;
+        seen.set(key, row + 1);
+        return { part, row };
+      });
+  }, [model.parts, bands]);
 
-  // связь датчика с его пикетом (или ближайшей точкой коридора)
-  const links = useMemo(
-    () =>
-      schema.sensors.map(sensor => {
-        const picketId = model.sensorById.get(sensor.id)?.picketId ?? null;
-        const target =
-          (picketId !== null ? schema.picketAt.get(picketId) : undefined) ??
-          nearestOnLines(sensor.at, corridorLines);
-        return { id: sensor.id, from: sensor.at, to: target };
-      }),
-    [schema, model.sensorById, corridorLines]
-  );
+  const showSensors = unit <= SCHEMA_LOD.sensors;
+  const letters = unit <= SCHEMA_LOD.letters;
+  const step = (letters ? 16 : 8) * unit;
+  const sensorAt = ({ anchor, normal, slot, loose }: SchemaSlot): Pt => {
+    if (loose) {
+      // вокруг точки объекта — по спирали, чтобы значки не ложились друг на друга
+      const angle = slot * 2.39996;
+      const r = step * 1.1 * Math.sqrt(slot + 1);
+      return [anchor[0] + Math.cos(angle) * r, anchor[1] + Math.sin(angle) * r];
+    }
+    // у пикета — поперёк цепочки, по очереди с двух сторон
+    const d = (1 + Math.floor(slot / 2)) * step * (slot % 2 === 0 ? 1 : -1);
+    return [anchor[0] + normal[0] * d, anchor[1] + normal[1] * d];
+  };
+  const sensors = showSensors
+    ? model.sensors.flatMap(sensor => {
+        const slot = schema.slots.get(sensor.id);
+        if (!slot) {
+          return [];
+        }
+        const at = sensorAt(slot);
+        return visible(at, view, 20 * unit) ? [{ sensor, at, anchor: slot.anchor }] : [];
+      })
+    : [];
 
-  const spacing =
-    schema.pickets.length > 1 ? Math.max(1, Math.abs(schema.pickets[1].at[0] - schema.pickets[0].at[0])) : 10;
-  const every = niceStep(Math.ceil((64 * unit) / spacing));
-  const detailed = unit <= 2.2;
+  // узлы — не чаще чем через 12 px, подписи — через 70 px (и всегда на узле)
+  const every = niceStep(Math.ceil((12 * unit) / schema.spacing));
+  const labelEvery = every * niceStep(Math.ceil((70 * unit) / (schema.spacing * every)));
+  const pad = 30 * unit;
 
   return (
     <g className="map-schema">
-      {bands.map(([objectId, range], index) => {
-        const object = byId.get(objectId);
-        const state = markerState(object, works);
-        const pad = 10 * unit;
-        // подпись — над своей рамкой; соседние рамки разводим по высоте
-        const labelY = range.y0 - pad - (12 + (index % 3) * 18) * unit;
-        const selected = info?.type === 'object' && info.id === objectId;
-        return (
-          <g
-            key={objectId}
-            className={`map-schema-band st-${object?.status ?? 'offline'} map-clickable${selected ? ' map-selected' : ''}`}
-            onClick={() => onObject(objectId)}
-          >
-            <rect
-              x={range.x0 - pad}
-              y={range.y0 - pad}
-              width={range.x1 - range.x0 + pad * 2}
-              height={range.y1 - range.y0 + pad * 2}
-              rx={6 * unit}
-              strokeWidth={1.2 * unit}
-            />
-            <g className={`ms-${state}`} transform={`translate(${range.x0} ${labelY}) scale(${unit})`}>
-              <circle className="map-marker-disc" r="7" />
-              <text className="map-schema-band-label" x="12" dy="0.35em">
-                {object?.name ?? `Объект ${objectId}`} · {markerStateLabels[state]}
-              </text>
-            </g>
-            <title>{object?.name}</title>
-          </g>
-        );
-      })}
+      <g className="map-schema-bands">
+        {bands.map(({ part, line, lane }) => {
+          const object = byId.get(part.id);
+          const selected = info?.type === 'object' && info.id === part.id;
+          return (
+            <path
+              key={part.id}
+              className={`map-schema-band st-${object?.status ?? 'offline'} map-clickable${selected ? ' map-selected' : ''}`}
+              d={linePath(offsetLine(line, lane * 10 * unit))}
+              strokeWidth={9 * unit}
+              onClick={() => onObject(part.id)}
+            >
+              <title>{object?.name ?? part.name}</title>
+            </path>
+          );
+        })}
+      </g>
 
-      <g className="map-schema-links" strokeWidth={unit}>
-        {links.map(link =>
-          link.to && visible(link.from, view, 60) ? <path key={link.id} d={linePath([link.from, link.to])} /> : null
+      {showSensors && (
+        <g className="map-schema-links" strokeWidth={unit}>
+          {sensors.map(({ sensor, at, anchor }) => (
+            <path key={sensor.id} d={linePath([anchor, at])} />
+          ))}
+        </g>
+      )}
+
+      <g className="map-schema-chains">
+        {schema.chains.map(chain => (
+          <path
+            key={chain.name}
+            className={chain.branch ? 'map-schema-branch' : undefined}
+            d={linePath(chain.points)}
+            strokeWidth={(chain.branch ? 2 : 2.8) * unit}
+          />
+        ))}
+      </g>
+
+      <g className="map-schema-nodes" strokeWidth={1.4 * unit}>
+        {schema.chains.flatMap(chain =>
+          chain.pickets.map((picket, k) => {
+            const last = k === chain.pickets.length - 1;
+            if ((k % every !== 0 && !last) || !visible(picket.at, view, pad)) {
+              return null;
+            }
+            return (
+              <circle
+                key={picket.id}
+                className={picket.sensors > 0 ? 'map-schema-node-busy' : undefined}
+                cx={picket.at[0]}
+                cy={picket.at[1]}
+                r={(k % labelEvery === 0 || last ? 4 : 3) * unit}
+              >
+                <title>{picket.code}</title>
+              </circle>
+            );
+          })
         )}
       </g>
 
-      {schema.corridors.map((corridor, index) => {
-        const end = corridor.points[corridor.points.length - 1];
+      <g className="map-schema-picket-labels" fontSize={9.5 * unit} strokeWidth={3 * unit}>
+        {schema.chains.flatMap(chain =>
+          chain.pickets.map((picket, k) =>
+            (k % labelEvery === 0 || k === chain.pickets.length - 1) && visible(picket.at, view, pad) ? (
+              <text key={picket.id} x={picket.at[0]} y={picket.at[1] + 15 * unit}>
+                {picket.short}
+              </text>
+            ) : null
+          )
+        )}
+      </g>
+
+      <g className="map-schema-chain-names" fontSize={11 * unit} strokeWidth={3.4 * unit}>
+        {schema.chains.map(chain => {
+          const end = chain.points[chain.points.length - 1];
+          return chain.label && end ? (
+            <text key={chain.name} x={end[0] + 9 * unit} y={end[1] - 9 * unit}>
+              {chain.label}
+            </text>
+          ) : null;
+        })}
+      </g>
+
+      {unit <= SCHEMA_LOD.entrances &&
+        model.entrances.map(entrance => (
+          <g
+            key={entrance.picketId}
+            className={`map-entrance map-clickable${info?.type === 'entrance' && info.picketId === entrance.picketId ? ' map-selected' : ''}`}
+            transform={`translate(${entrance.at[0]} ${entrance.at[1]}) scale(${unit})`}
+            onClick={() => onInfo({ type: 'entrance', picketId: entrance.picketId })}
+          >
+            <EntranceGlyph />
+            {unit <= SCHEMA_LOD.entranceNames && (
+              <text className="map-entrance-label" x="11" dy="0.35em">
+                Вход {entrance.code.slice(entrance.code.lastIndexOf('ПК'))}
+              </text>
+            )}
+            <title>Вход в коллектор · {entrance.code}</title>
+          </g>
+        ))}
+
+      {showSensors && (
+        <g className="map-schema-sensors">
+          {sensors.map(({ sensor, at }) => {
+            const system = systemByName.get(sensor.system) ?? fallbackSystem;
+            const selected = info?.type === 'sensor' && info.id === sensor.id;
+            return (
+              <g
+                key={sensor.id}
+                className={`map-schema-sensor map-clickable${selected ? ' map-selected' : ''}`}
+                transform={`translate(${at[0]} ${at[1]}) scale(${unit})`}
+                onClick={() => onInfo({ type: 'sensor', id: sensor.id })}
+              >
+                {selected && <circle className="map-marker-ring" r="11" />}
+                <circle r={letters ? 7 : 3.5} fill={system.color} />
+                {letters && <text dy="0.35em">{system.letter}</text>}
+                <title>{sensor.name || sensor.system}</title>
+              </g>
+            );
+          })}
+        </g>
+      )}
+
+      {bands.map(({ part, line, lane }) => {
+        const object = byId.get(part.id);
+        const state = markerState(object, works);
+        const [x, y] = offsetLine(line, lane * 10 * unit)[0];
         return (
-          <g key={index} className={`map-schema-corridor map-schema-${corridor.kind}`}>
-            <path d={linePath(corridor.points)} strokeWidth={(corridor.kind === 'trace' ? 5 : 3.5) * unit} />
-            <text x={end[0] + 8 * unit} y={end[1]} dy="0.35em" fontSize={11 * unit}>
-              {corridor.name}
+          <g
+            key={part.id}
+            className={`map-schema-part ms-${state} map-clickable`}
+            transform={`translate(${x} ${y}) scale(${unit})`}
+            onClick={() => onObject(part.id)}
+          >
+            <circle className="map-marker-disc" r="7" />
+            <text className="map-schema-part-label" x="12" dy="0.35em">
+              {object?.name ?? part.name} · {markerStateLabels[state]}
             </text>
           </g>
         );
       })}
 
-      <g className="map-schema-pickets" strokeWidth={1.2 * unit}>
-        {schema.pickets.map((picket, index) => {
-          const labelled = index % every === 0;
-          if (!visible(picket.at, view, 30) || (!labelled && !detailed)) {
-            return null;
-          }
-          const [x, y] = picket.at;
-          const tick = (labelled ? 7 : 4) * unit;
-          return (
-            <g key={picket.id}>
-              <path d={`M${x} ${y - tick}V${y + tick}`} />
-              {labelled && (
-                <text x={x} y={y + 18 * unit} fontSize={9.5 * unit}>
-                  {picket.short}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </g>
-
-      <g className="map-schema-sensors">
-        {schema.sensors.map(sensor => {
-          if (!visible(sensor.at, view, 20)) {
-            return null;
-          }
-          const system = systemByName.get(sensor.system) ?? fallbackSystem;
-          const selected = info?.type === 'sensor' && info.id === sensor.id;
-          const name = model.sensorById.get(sensor.id)?.name ?? sensor.system;
-          return (
-            <g
-              key={sensor.id}
-              className={`map-schema-sensor map-clickable${selected ? ' map-selected' : ''}`}
-              transform={`translate(${sensor.at[0]} ${sensor.at[1]}) scale(${unit})`}
-              onClick={() => onInfo({ type: 'sensor', id: sensor.id })}
-            >
-              {selected && <circle className="map-marker-ring" r="11" />}
-              <circle r={detailed ? 7 : 4} fill={system.color} />
-              {detailed && <text dy="0.35em">{system.letter}</text>}
-              <title>{name}</title>
-            </g>
-          );
-        })}
-      </g>
+      {points.map(({ part, row }) => {
+        const object = byId.get(part.id);
+        const state = markerState(object, works);
+        const selected = info?.type === 'object' && info.id === part.id;
+        return (
+          <g
+            key={part.id}
+            className={`map-schema-part ms-${state} map-clickable${selected ? ' map-selected' : ''}`}
+            transform={`translate(${part.at[0]} ${part.at[1]}) scale(${unit})`}
+            onClick={() => onObject(part.id)}
+          >
+            <circle className="map-marker-disc" r="7" cy={row * 16} />
+            <text className="map-schema-part-label" x="12" y={row * 16} dy="0.35em">
+              {object?.name ?? part.name} · {markerStateLabels[state]}
+            </text>
+          </g>
+        );
+      })}
     </g>
   );
 }

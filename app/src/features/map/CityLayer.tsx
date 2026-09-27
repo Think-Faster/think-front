@@ -1,14 +1,14 @@
 import { memo } from 'react';
 
-import { City, CityTile, ROAD, TILE_SIZE } from './city';
+import { BUILDING_CLASSES, City, CityTile, LAND_FILLS, ROAD, TILE_SIZE } from './city';
 import { Box } from './geo';
 
 // Пороги детализации — в метрах на экранный пиксель (unit).
 const LOD = {
-  streets: 9, // местные улицы
+  streets: 9, // местные улицы и кварталы
   buildings: 3.2, // дома, скверы, деревья
   streetNames: 1.9, // названия местных улиц
-  arterialNames: 7, // названия магистралей
+  arterialNames: 4, // названия магистралей
   houseNumbers: 0.65, // номера домов
 };
 
@@ -43,29 +43,60 @@ function CityLayer({ city, box, unit, dim }: CityLayerProps) {
     : [];
 
   const withBuildings = unit <= LOD.buildings;
-  const arterialCasing = width(ROAD.arterial, 3.4, unit);
-  const arterialCore = arterialCasing - width(6, 1.3, unit);
+  // на обзоре магистрали тоньше — видно характер районов, а не только сетку
+  const arterialCasing = width(ROAD.arterial, detailed ? 3.4 : 2.2, unit);
+  const arterialCore = arterialCasing - width(6, detailed ? 1.3 : 0.9, unit);
   const localCasing = width(ROAD.local, 1.8, unit);
   const localCore = localCasing - width(4, 0.9, unit);
   const traceCasing = width(ROAD.trace, 2, unit);
   const traceCore = traceCasing - width(4, 0.9, unit);
+  const railWidth = width(ROAD.rail, 2.6, unit);
+  const tie = Math.max(8, 5 * unit);
   const labelSize = 11 * unit;
 
   return (
     <g className={`city${dim ? ' city-dim' : ''}`} aria-hidden="true">
-      <path className="city-ground" d={base.outline} />
-      <path className="city-parks" d={base.parks} />
-      {withBuildings && (
-        <g className="city-parks">
-          {tiles.map(tile => tile.parks && <path key={tile.key} d={tile.parks} />)}
+      <path className="city-ground" d={base.ground} />
+
+      {/* на обзоре — характер районов целыми тайлами, ближе — кварталы */}
+      {detailed
+        ? LAND_FILLS.map(fill => (
+            <g key={fill} className={`city-land city-land-${fill}`}>
+              {tiles.map(tile => tile.ground[fill] && <path key={tile.key} d={tile.ground[fill]} />)}
+            </g>
+          ))
+        : LAND_FILLS.map(fill => (
+            <path key={fill} className={`city-land city-land-${fill}`} d={base.landuse[fill]} />
+          ))}
+
+      <path className="city-lake" d={base.lakes} />
+      {detailed && (
+        <g className="city-lake">
+          {tiles.map(tile => tile.water && <path key={tile.key} d={tile.water} />)}
         </g>
       )}
       <path className="city-water" d={base.river} strokeWidth={width(ROAD.river, 5, unit)} />
+
       {withBuildings && (
-        <g className="city-trees">
-          {tiles.map(tile => tile.trees && <path key={tile.key} d={tile.trees} />)}
-        </g>
+        <>
+          <g className="city-pitches" strokeWidth={Math.max(1.5, 0.8 * unit)}>
+            {tiles.map(tile => tile.pitches && <path key={tile.key} d={tile.pitches} />)}
+          </g>
+          <g className="city-paths" strokeWidth={width(2.5, 0.8, unit)}>
+            {tiles.map(tile => tile.paths && <path key={tile.key} d={tile.paths} />)}
+          </g>
+          <g className="city-trees">
+            {tiles.map(tile => tile.trees && <path key={tile.key} d={tile.trees} />)}
+          </g>
+        </>
       )}
+
+      <g className="city-rail">
+        <path className="city-rail-bed" d={base.rail} strokeWidth={railWidth} />
+        {detailed && (
+          <path className="city-rail-ties" d={base.rail} strokeWidth={railWidth * 0.45} strokeDasharray={`${tie} ${tie}`} />
+        )}
+      </g>
 
       <g className="city-road-casing">
         {tiles.map(tile => (
@@ -84,17 +115,14 @@ function CityLayer({ city, box, unit, dim }: CityLayerProps) {
         <path className="city-arterial" d={base.arterials} strokeWidth={arterialCore} />
       </g>
 
-      {withBuildings && (
-        <g className="city-buildings" strokeWidth={Math.min(1, 0.6 * unit)}>
-          {tiles.map(tile => tile.buildings && <path key={tile.key} d={tile.buildings} />)}
-        </g>
-      )}
+      {withBuildings &&
+        BUILDING_CLASSES.map(style => (
+          <g key={style} className={`city-buildings city-buildings-${style}`} strokeWidth={Math.min(1, 0.6 * unit)}>
+            {tiles.map(tile => tile.buildings[style] && <path key={tile.key} d={tile.buildings[style]} />)}
+          </g>
+        ))}
 
-      <path className="city-outline" d={base.outline} strokeWidth={2 * unit} strokeDasharray={`${10 * unit} ${6 * unit}`} />
-
-      {unit <= LOD.arterialNames && (
-        <StreetNames tiles={tiles} unit={unit} size={labelSize} arterial />
-      )}
+      {unit <= LOD.arterialNames && <StreetNames tiles={tiles} unit={unit} size={labelSize} arterial />}
       {unit <= LOD.streetNames && <StreetNames tiles={tiles} unit={unit} size={labelSize * 0.92} />}
 
       {unit <= LOD.houseNumbers && (

@@ -162,81 +162,107 @@ export function buildCollector(level2: Feature[], level3: Feature[]): CollectorM
 
 // ---------------------------------------------------------------- схема
 
-export interface SchemaModel {
-  corridors: Corridor[];
+// Цепочка пикетов: основная трасса или ветка. Ветка начинается от пикета,
+// из которого выходит («ПК44 Г1 ПК0» — от «ПК44»), поэтому её линия
+// начинается с точки родителя.
+export interface SchemaChain {
+  name: string; // префикс кода пикетов: «», «Альфа», «ПК44 Г1»
+  label: string; // подпись у конца цепочки
+  branch: boolean;
   pickets: Picket[];
-  sensors: { id: number; system: string; at: Pt }[];
-  picketAt: Map<number, Pt>;
-  bounds: Box | null;
+  points: Pt[];
 }
 
-// Принципиальная схема (уровень 4): коридоры развёрнуты в прямые, датчики
-// разнесены по полосам в несколько метров. Схема длинная и плоская
-// (километры на десятки метров), поэтому по вертикали её растягиваем —
-// иначе полосы датчиков сливаются в одну линию.
-export function buildSchema(level4: Feature[]): SchemaModel {
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const feature of level4) {
-    for (const line of lines(feature.geometry)) {
-      for (const [x, y] of line) {
-        minX = Math.min(minX, x);
-        maxX = Math.max(maxX, x);
-        minY = Math.min(minY, y);
-        maxY = Math.max(maxY, y);
-      }
-    }
-    const at = point(feature.geometry);
-    if (at) {
-      minX = Math.min(minX, at[0]);
-      maxX = Math.max(maxX, at[0]);
-      minY = Math.min(minY, at[1]);
-      maxY = Math.max(maxY, at[1]);
-    }
-  }
-  const spanX = Math.max(maxX - minX, 1);
-  const spanY = Math.max(maxY - minY, 1);
-  const stretch = Math.min(14, Math.max(1, spanX / spanY / 3.2));
-  const scale = ([x, y]: Pt): Pt => [x, y * stretch];
+export interface SchemaSlot {
+  anchor: Pt; // пикет или точка объекта
+  normal: Pt; // в какую сторону откладывать (для пикета — поперёк цепочки)
+  slot: number; // номер места: 0, 1, 2… — по очереди с двух сторон или по спирали
+  loose: boolean; // датчик без пикета — раскладываем вокруг точки
+}
 
-  const corridors: Corridor[] = [];
-  const pickets: Picket[] = [];
-  const sensors: SchemaModel['sensors'] = [];
+export interface SchemaModel {
+  chains: SchemaChain[];
+  spacing: number; // обычный шаг между пикетами, м
+  slots: Map<number, SchemaSlot>;
+}
 
-  for (const feature of level4) {
-    const props = feature.properties ?? {};
-    const kind = str(props.kind);
-    if (kind === 'trace' || kind === 'branch') {
-      const name = kind === 'branch' ? `${str(props.trace)} · ${str(props.branch)}` : str(props.trace);
-      lines(feature.geometry).forEach(points => corridors.push({ kind, name, points: points.map(scale) }));
-    } else if (kind === 'picket') {
-      const at = point(feature.geometry);
-      const id = num(props.id);
-      if (at && id !== null) {
-        const code = str(props.code);
-        pickets.push({ id, code, short: shortPicket(code), at: scale(at), sensors: 0 });
-      }
-    } else if (kind === 'sensor') {
-      const at = point(feature.geometry);
-      const id = num(props.id);
-      if (at && id !== null) {
-        sensors.push({ id, system: str(props.system), at: scale(at) });
-      }
+// Схема коллектора в его настоящей форме (уровень 2): пикеты — узлы,
+// соединённые линиями в порядке номеров, датчики — вокруг своих пикетов
+// на расстоянии в пикселях, так что при приближении они расходятся.
+export function buildSchema(model: CollectorModel): SchemaModel {
+  const groups = new Map<string, Picket[]>();
+  for (const picket of model.pickets) {
+    const at = picket.code.lastIndexOf('ПК');
+    const prefix = (at >= 0 ? picket.code.slice(0, at) : '').trim();
+    const group = groups.get(prefix);
+    if (group) {
+      group.push(picket);
+    } else {
+      groups.set(prefix, [picket]);
     }
   }
+  const byCode = new Map(model.pickets.map(picket => [picket.code.trim(), picket]));
+  const number = (picket: Picket) => Number(/ПК(\d+)\s*$/.exec(picket.code)?.[1] ?? 0);
 
-  return {
-    corridors,
-    pickets,
-    sensors,
-    picketAt: new Map(pickets.map(picket => [picket.id, picket.at])),
-    bounds: boundsOf(
-      [...corridors.map(corridor => corridor.points), sensors.map(sensor => sensor.at)],
-      0.05
-    ),
-  };
+  const chains: SchemaChain[] = [];
+  const steps: number[] = [];
+  for (const [prefix, list] of Array.from(groups.entries())) {
+    const pickets = [...list].sort((a, b) => number(a) - number(b));
+    const points = pickets.map(picket => picket.at);
+    for (let k = 1; k < points.length; k++) {
+      steps.push(Math.hypot(points[k][0] - points[k - 1][0], points[k][1] - points[k - 1][1]));
+    }
+    // родитель ветки: префикс без последнего слова («Альфа ПК231 Г3» → «Альфа ПК231»)
+    const cut = prefix.lastIndexOf(' ');
+    const parent = cut > 0 ? byCode.get(prefix.slice(0, cut)) : undefined;
+    if (parent && points.length > 0) {
+      points.unshift(parent.at);
+    }
+    const branch = parent !== undefined || /(^|\s)Г\d+$/.test(prefix);
+    // у основной трассы без префикса подпись — название трассы из коридоров
+    const label = branch
+      ? prefix.slice(prefix.lastIndexOf(' ') + 1)
+      : prefix || (model.corridors.find(corridor => corridor.kind === 'trace')?.name ?? '');
+    chains.push({ name: prefix, label, branch, pickets, points });
+  }
+  steps.sort((a, b) => a - b);
+  const spacing = Math.max(1, steps[Math.floor(steps.length / 2)] ?? 5);
+
+  // направление цепочки у каждого пикета — по соседям
+  const normals = new Map<number, Pt>();
+  for (const chain of chains) {
+    const { pickets } = chain;
+    pickets.forEach((picket, k) => {
+      const a = pickets[Math.max(0, k - 1)].at;
+      const b = pickets[Math.min(pickets.length - 1, k + 1)].at;
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const length = Math.hypot(dx, dy) || 1;
+      normals.set(picket.id, [-dy / length, dx / length]);
+    });
+  }
+
+  const slots = new Map<number, SchemaSlot>();
+  const used = new Map<string, number>();
+  const partAt = new Map(model.parts.map(part => [part.id, part.at]));
+  for (const sensor of [...model.sensors].sort((a, b) => a.id - b.id)) {
+    const picket = sensor.picketId !== null ? model.picketById.get(sensor.picketId) : undefined;
+    if (picket) {
+      const key = `p${picket.id}`;
+      const slot = used.get(key) ?? 0;
+      used.set(key, slot + 1);
+      slots.set(sensor.id, { anchor: picket.at, normal: normals.get(picket.id) ?? [0, -1], slot, loose: false });
+      continue;
+    }
+    // без пикета — у точки своего объекта (ДП, шкаф) или там, где стоит
+    const anchor = (sensor.objectId !== null ? partAt.get(sensor.objectId) : undefined) ?? sensor.at;
+    const key = `a${anchor[0].toFixed(0)}:${anchor[1].toFixed(0)}`;
+    const slot = used.get(key) ?? 0;
+    used.set(key, slot + 1);
+    slots.set(sensor.id, { anchor, normal: [0, -1], slot, loose: true });
+  }
+
+  return { chains, spacing, slots };
 }
 
 // Подсистемы датчиков: цвет и буква значка на схеме.

@@ -2572,7 +2572,7 @@ label.recipient-item {
 
 .map {
   --city-bg: #eef1f6;
-  --city-ground: #e4e9f1;
+  --city-ground: #f3f5f9;
   --city-building: #cbd5e4;
   --city-building-line: #b1bfd3;
   --city-road: #7d9fd3;
@@ -2583,6 +2583,21 @@ label.recipient-item {
   --city-tree: #93c784;
   --city-water: #94c3ec;
   --city-label: #2b4a73;
+  --city-dense: #d3dbe9;
+  --city-block: #dce3ee;
+  --city-garden: #e0e9d9;
+  --city-industrial: #dedce2;
+  --city-forest: #b2d5a4;
+  --city-field: #eaeed7;
+  --city-tall: #b8c5da;
+  --city-tall-line: #9aabc6;
+  --city-factory: #d2cfd8;
+  --city-factory-line: #b3aebd;
+  --city-public: #d9d0e8;
+  --city-public-line: #bcaed6;
+  --city-pitch: #9fd18f;
+  --city-path: #f6f3e8;
+  --city-rail: #8e97a8;
 
   --ms-normal: #3f9a55;
   --ms-watch: #e2a91c;
@@ -2770,21 +2785,74 @@ label.recipient-item {
   fill: var(--city-ground);
 }
 
-.city .city-parks,
-.city .city-parks path {
+.city .city-land-dense,
+.city .city-land-dense path {
+  fill: var(--city-dense);
+}
+
+.city .city-land-block,
+.city .city-land-block path {
+  fill: var(--city-block);
+}
+
+.city .city-land-garden,
+.city .city-land-garden path {
+  fill: var(--city-garden);
+}
+
+.city .city-land-industrial,
+.city .city-land-industrial path {
+  fill: var(--city-industrial);
+}
+
+.city .city-land-park,
+.city .city-land-park path {
   fill: var(--city-park);
 }
 
+.city .city-land-forest,
+.city .city-land-forest path {
+  fill: var(--city-forest);
+}
+
+.city .city-land-field,
+.city .city-land-field path {
+  fill: var(--city-field);
+}
+
+.city .city-lake,
+.city .city-lake path {
+  fill: var(--city-water);
+}
+
 .city .city-trees,
-.city .city-trees path,
-.city .city-trees circle {
+.city .city-trees path {
   fill: var(--city-tree);
+}
+
+.city .city-pitches path {
+  fill: var(--city-pitch);
+  stroke: #ffffff;
+}
+
+.city .city-paths path {
+  stroke: var(--city-path);
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .city .city-water {
   stroke: var(--city-water);
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.city .city-rail-bed {
+  stroke: var(--city-rail);
+}
+
+.city .city-rail-ties {
+  stroke: #ffffff;
 }
 
 .city-road-casing path,
@@ -2809,15 +2877,24 @@ label.recipient-item {
   stroke: var(--city-arterial-core);
 }
 
-.city .city-buildings,
 .city .city-buildings path {
   fill: var(--city-building);
   stroke: var(--city-building-line);
 }
 
-.city .city-outline {
-  fill: none;
-  stroke: rgba(13, 35, 58, 0.35);
+.city .city-buildings-tall path {
+  fill: var(--city-tall);
+  stroke: var(--city-tall-line);
+}
+
+.city .city-buildings-industrial path {
+  fill: var(--city-factory);
+  stroke: var(--city-factory-line);
+}
+
+.city .city-buildings-public path {
+  fill: var(--city-public);
+  stroke: var(--city-public-line);
 }
 
 .city-street-names text,
@@ -3073,27 +3150,26 @@ label.recipient-item {
   stroke-width: 0.6;
 }
 
-/* ---------- принципиальная схема ---------- */
+/* ---------- схема: коллектор в настоящей форме, пикеты узлами ---------- */
 
-.map-schema-band rect {
-  fill: var(--st);
-  fill-opacity: 0.06;
+.map-schema-band {
+  fill: none;
   stroke: var(--st);
-  stroke-opacity: 0.55;
-  stroke-dasharray: 6 4;
+  stroke-opacity: 0.28;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.map-schema-band:hover rect,
-.map-schema-band.map-selected rect {
-  fill-opacity: 0.14;
-  stroke-opacity: 1;
+.map-schema-band:hover,
+.map-schema-band.map-selected {
+  stroke-opacity: 0.5;
 }
 
-.map-schema-band .map-marker-disc {
+.map-schema-part .map-marker-disc {
   stroke-width: 1.5;
 }
 
-.map-schema-band-label {
+.map-schema-part-label {
   fill: var(--brand-deep);
   stroke: #ffffff;
   stroke-width: 3;
@@ -3108,32 +3184,41 @@ label.recipient-item {
   stroke: rgba(13, 35, 58, 0.28);
 }
 
-.map-schema-corridor path {
+.map-schema-chains path {
   fill: none;
   stroke: var(--brand-deep);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.map-schema-branch path {
+.map-schema-chains .map-schema-branch {
   stroke: #3b6aa6;
 }
 
-.map-schema-corridor text {
-  fill: var(--brand-deep);
-
-  font-weight: 700;
-}
-
-.map-schema-pickets path {
+.map-schema-nodes circle {
+  fill: #ffffff;
   stroke: var(--brand-deep);
 }
 
-.map-schema-pickets text {
+.map-schema-nodes .map-schema-node-busy {
+  fill: #9fb8d8;
+}
+
+.map-schema-picket-labels text {
   fill: var(--text-dim);
+  stroke: #ffffff;
+  paint-order: stroke;
 
   font-weight: 600;
   text-anchor: middle;
+}
+
+.map-schema-chain-names text {
+  fill: var(--brand-deep);
+  stroke: #ffffff;
+  paint-order: stroke;
+
+  font-weight: 800;
 }
 
 .map-schema-sensor circle:not(.map-marker-ring) {
