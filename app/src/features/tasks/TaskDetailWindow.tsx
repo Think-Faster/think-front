@@ -9,6 +9,7 @@ import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
 import EmptyState from '../../shared/ui/EmptyState';
 import { useSelectionStore } from '../../stores/selection/selectionStore';
 import { openWindow } from '../../stores/workspace/workspaceCommands';
+import { showObjectOnMap } from '../map/mapRequest';
 import { useObjects } from '../objects/hooks/useObjects';
 import { usePredictions } from '../predictions/hooks/usePredictions';
 import { useUsers } from '../users/hooks/useUsers';
@@ -46,6 +47,8 @@ export default function TaskDetailWindow() {
 
   const canAct = usePermission('tasks', 'update');
   const canReadings = usePermission('readings', 'read');
+  // Карта — окно «Карта» (objects:read): техник видит объект заявки, его входы и схему.
+  const canMap = usePermission('objects', 'read');
   const setSelectedId = useSelectionStore(state => state.setObjectId);
 
   const [predictionId, setPredictionId] = useState('');
@@ -170,9 +173,10 @@ export default function TaskDetailWindow() {
         {object ? object.name : `Объект #${task.objectId}`} · {taskSourceTypeLabels[task.sourceType]}
       </p>
 
-      {canLogs && (
+      {(canLogs || canMap) && (
         <div className="pd-actions">
-          <Button onClick={openLogs}>Логи объекта</Button>
+          {canMap && <Button onClick={() => showObjectOnMap(task.objectId)}>Карта объекта</Button>}
+          {canLogs && <Button onClick={openLogs}>Логи объекта</Button>}
         </div>
       )}
 

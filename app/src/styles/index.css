@@ -2564,12 +2564,34 @@ label.recipient-item {
 }
 
 /* =========================
-   MAP (схема района в метрах, SVG)
+   MAP (район, карта объекта, схема — features/map)
+   Город по макету Даши: светлые кварталы, синие дороги со светлой
+   серединой, зелёные парки, голубая вода. Толщины линий заданы в
+   разметке (в метрах × unit), здесь — только цвета.
 ========================= */
 
 .map {
+  --city-bg: #eef1f6;
+  --city-ground: #e4e9f1;
+  --city-building: #cbd5e4;
+  --city-building-line: #b1bfd3;
+  --city-road: #7d9fd3;
+  --city-road-core: #cbdaf1;
+  --city-arterial: #4f7cc0;
+  --city-arterial-core: #a7c1e8;
+  --city-park: #c6e3bb;
+  --city-tree: #93c784;
+  --city-water: #94c3ec;
+  --city-label: #2b4a73;
+
+  --ms-normal: #3f9a55;
+  --ms-watch: #e2a91c;
+  --ms-alarm: #d23b2b;
+  --ms-offline: #8c8f96;
+  --ms-works: #175289;
+
   height: 100%;
-  min-height: 260px;
+  min-height: 300px;
 
   display: flex;
   flex-direction: column;
@@ -2579,56 +2601,100 @@ label.recipient-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
 
   padding: 10px 12px;
 
   font-size: 13px;
-  font-weight: 600;
 }
 
 .map-crumbs {
-  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
 }
 
-.map-back {
-  padding: 0;
+.map-crumb {
+  padding: 5px 8px;
 
   border: none;
+  border-radius: 8px;
   background: none;
   color: var(--brand);
 
   font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
 
   cursor: pointer;
 }
 
-.map-back:hover {
-  text-decoration: underline;
+.map-crumb:hover,
+.map-crumb.active {
+  background: var(--brand-dim);
 }
 
-.map-fit {
-  flex: none;
+.map-crumb-sep {
+  color: var(--text-faint);
+}
 
-  padding: 5px 10px;
+.map-collector {
+  min-width: 0;
+  max-width: 260px;
+
+  padding: 5px 8px;
 
   border: 1px solid var(--cell-line);
-  border-radius: 10px;
-
+  border-radius: 8px;
   background: var(--surface);
   color: var(--text);
 
-  font-size: 12px;
+  font: inherit;
+  font-weight: 600;
 
   cursor: pointer;
 }
 
-.map-fit:hover:not(:disabled) {
-  border-color: var(--brand);
+.map-modes {
+  display: inline-flex;
+
+  padding: 3px;
+
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--cell-line);
+}
+
+.map-modes button {
+  padding: 5px 12px;
+
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-dim);
+
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.map-modes button:hover:not(:disabled) {
+  color: var(--brand);
+}
+
+.map-modes button.active {
+  background: var(--grad);
+  color: #ffffff;
+}
+
+.map-modes button:disabled {
+  color: var(--text-faint);
+  cursor: default;
 }
 
 .map-stage {
@@ -2639,26 +2705,36 @@ label.recipient-item {
 
   margin: 0 12px;
 
-  border-radius: 12px;
-
-  background: var(--surface);
+  border-radius: 11px;
+  background: var(--city-bg);
 
   overflow: hidden;
+}
+
+.map-stage-schema {
+  background-color: #fbfcfe;
+  background-image:
+    linear-gradient(rgba(13, 35, 58, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(13, 35, 58, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
 .map-note {
   position: absolute;
   top: 12px;
   left: 12px;
-  right: 12px;
 
-  z-index: 1;
+  z-index: 2;
 
   margin: 0;
+  padding: 6px 10px;
+
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
 
   font-size: 12px;
 
-  color: var(--muted);
+  color: var(--text-dim);
 }
 
 .map-svg {
@@ -2669,91 +2745,614 @@ label.recipient-item {
 
   cursor: grab;
   touch-action: none;
+  user-select: none;
 }
 
 .map-svg:active {
   cursor: grabbing;
 }
 
-.map-feature path {
+.map-svg text {
+  font-family: 'Montserrat', sans-serif;
+}
+
+/* ---------- город ---------- */
+
+.city path {
   fill: none;
-  stroke: var(--st, var(--brand));
-  stroke-width: 2;
+}
+
+.city-dim {
+  opacity: 0.85;
+}
+
+.city .city-ground {
+  fill: var(--city-ground);
+}
+
+.city .city-parks,
+.city .city-parks path {
+  fill: var(--city-park);
+}
+
+.city .city-trees,
+.city .city-trees path,
+.city .city-trees circle {
+  fill: var(--city-tree);
+}
+
+.city .city-water {
+  stroke: var(--city-water);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.map-area path {
-  fill: var(--brand-dim);
-  stroke: var(--cell-line);
-  stroke-width: 1;
-  stroke-dasharray: 6 4;
+.city-road-casing path,
+.city-road-core path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.map-branch path {
-  stroke-width: 1;
-  stroke-dasharray: 4 3;
-
-  opacity: 0.7;
+.city .city-road-casing path {
+  stroke: var(--city-road);
 }
 
-.map-object path {
-  stroke-width: 5;
-
-  opacity: 0.9;
+.city .city-road-core path {
+  stroke: var(--city-road-core);
 }
 
-circle.map-feature {
-  fill: var(--st, var(--brand));
-  stroke: #ffffff;
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
+.city .city-road-casing path.city-arterial {
+  stroke: var(--city-arterial);
 }
 
-circle.map-picket {
-  fill: var(--muted);
-
-  opacity: 0.6;
+.city .city-road-core path.city-arterial {
+  stroke: var(--city-arterial-core);
 }
 
-.map-feature path.map-hit {
-  stroke: transparent;
-  stroke-width: 14;
+.city .city-buildings,
+.city .city-buildings path {
+  fill: var(--city-building);
+  stroke: var(--city-building-line);
 }
+
+.city .city-outline {
+  fill: none;
+  stroke: rgba(13, 35, 58, 0.35);
+}
+
+.city-street-names text,
+.city-house-numbers text {
+  fill: var(--city-label);
+  stroke: rgba(255, 255, 255, 0.9);
+  paint-order: stroke;
+  stroke-linejoin: round;
+}
+
+.city-street-names text {
+  font-weight: 500;
+}
+
+.city-street-names-major text {
+  font-weight: 700;
+}
+
+.city-house-numbers text {
+  fill: #50627c;
+
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+/* ---------- значки ---------- */
 
 .map-clickable {
   cursor: pointer;
 }
 
-.map-clickable:hover path:not(.map-hit) {
-  stroke-width: 4;
+.map-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: stroke;
 }
 
-.map-selected path:not(.map-hit) {
-  stroke-width: 5;
-
-  filter: drop-shadow(0 0 3px rgba(23, 82, 137, 0.6));
+.ms-normal {
+  --ms: var(--ms-normal);
 }
 
-circle.map-selected {
+.ms-watch {
+  --ms: var(--ms-watch);
+}
+
+.ms-alarm {
+  --ms: var(--ms-alarm);
+}
+
+.ms-offline {
+  --ms: var(--ms-offline);
+}
+
+.ms-works {
+  --ms: var(--ms-works);
+}
+
+.map-marker-disc {
+  fill: var(--ms);
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.map-marker {
+  filter: drop-shadow(0 1px 1.5px rgba(13, 35, 58, 0.35));
+}
+
+.map-marker.map-clickable:hover .map-marker-disc {
   stroke: var(--brand-deep);
+}
+
+.map-marker-ring {
+  fill: #ffffff;
+  stroke: var(--brand-deep);
+  stroke-width: 2.5;
+}
+
+.map-glyph {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-glyph circle {
+  stroke-width: 2;
+}
+
+.map-glyph-text {
+  fill: #ffffff;
+
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.map-label {
+  fill: var(--brand-deep);
+  stroke: rgba(255, 255, 255, 0.92);
+  paint-order: stroke;
+  stroke-linejoin: round;
+
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.map-entrance-glyph circle {
+  fill: #ffffff;
+  stroke: var(--brand-deep);
+  stroke-width: 2;
+}
+
+.map-entrance-glyph path {
+  stroke: var(--brand-deep);
+  stroke-width: 1.4;
+}
+
+.map-entrance-label {
+  fill: var(--brand-deep);
+  stroke: #ffffff;
+  stroke-width: 3;
+  paint-order: stroke;
+
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.map-entrance:hover .map-entrance-glyph circle,
+.map-entrance.map-selected .map-entrance-glyph circle {
+  fill: #ffe9a8;
+}
+
+.map-base-glyph rect {
+  fill: var(--brand-deep);
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.map-base-glyph text {
+  fill: #ffffff;
+
+  font-family: 'Montserrat', sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.map-part-label {
+  fill: var(--brand-deep);
+  stroke: #ffffff;
+  stroke-width: 3;
+  paint-order: stroke;
+
+  font-size: 10px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.map-cabinet rect {
+  fill: var(--st);
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.map-cabinet path {
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.map-state-badge .map-marker-disc {
+  stroke-width: 2.5;
+}
+
+.map-selected .map-base-glyph rect,
+.map-cabinet.map-selected rect {
+  stroke: #ffd24a;
   stroke-width: 3;
 }
 
-.map-foot {
+/* ---------- коллекторы на карте ---------- */
+
+.map-trace path,
+.map-context path,
+.map-part path,
+.map-corridor,
+.map-corridor-halo {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-trace .map-trace-halo,
+.map-corridor-halo {
+  stroke: rgba(255, 255, 255, 0.85);
+}
+
+.map-trace .map-trace-line {
+  stroke: var(--st);
+}
+
+.map-trace:hover .map-trace-halo {
+  stroke: #fff1b8;
+}
+
+.map-context .map-context-line {
+  stroke: rgba(13, 35, 58, 0.4);
+}
+
+.map-context:hover .map-context-line {
+  stroke: var(--brand);
+}
+
+.map-part .map-part-band {
+  stroke: var(--st);
+  opacity: 0.3;
+}
+
+.map-part-trace_guard .map-part-band {
+  opacity: 0.16;
+}
+
+.map-part:hover .map-part-band,
+.map-part.map-selected .map-part-band {
+  opacity: 0.55;
+}
+
+.map-corridor {
+  stroke: var(--brand-deep);
+}
+
+.map-corridor.map-corridor-branch {
+  stroke: #3b6aa6;
+}
+
+.map-pickets circle {
+  fill: var(--brand-deep);
+}
+
+.map-picket-labels text {
+  fill: var(--brand-deep);
+  stroke: #ffffff;
+  paint-order: stroke;
+
+  font-weight: 600;
+}
+
+.map-sensor-dots circle {
+  stroke: #ffffff;
+  stroke-width: 0.6;
+}
+
+/* ---------- принципиальная схема ---------- */
+
+.map-schema-band rect {
+  fill: var(--st);
+  fill-opacity: 0.06;
+  stroke: var(--st);
+  stroke-opacity: 0.55;
+  stroke-dasharray: 6 4;
+}
+
+.map-schema-band:hover rect,
+.map-schema-band.map-selected rect {
+  fill-opacity: 0.14;
+  stroke-opacity: 1;
+}
+
+.map-schema-band .map-marker-disc {
+  stroke-width: 1.5;
+}
+
+.map-schema-band-label {
+  fill: var(--brand-deep);
+  stroke: #ffffff;
+  stroke-width: 3;
+  paint-order: stroke;
+
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.map-schema-links path {
+  fill: none;
+  stroke: rgba(13, 35, 58, 0.28);
+}
+
+.map-schema-corridor path {
+  fill: none;
+  stroke: var(--brand-deep);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-schema-branch path {
+  stroke: #3b6aa6;
+}
+
+.map-schema-corridor text {
+  fill: var(--brand-deep);
+
+  font-weight: 700;
+}
+
+.map-schema-pickets path {
+  stroke: var(--brand-deep);
+}
+
+.map-schema-pickets text {
+  fill: var(--text-dim);
+
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.map-schema-sensor circle:not(.map-marker-ring) {
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+.map-schema-sensor:hover circle:not(.map-marker-ring) {
+  stroke: var(--brand-deep);
+}
+
+.map-schema-sensor text {
+  fill: #ffffff;
+
+  font-size: 8.5px;
+  font-weight: 800;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+/* ---------- масштаб: тёмно-синие квадраты справа внизу, как в макете ---------- */
+
+.map-zoom {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+
+  z-index: 2;
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.map-zoom button {
+  width: 34px;
+  height: 34px;
+
+  border: none;
+  border-radius: 8px;
+  background: var(--brand-deep);
+  color: #ffffff;
+
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+
+  box-shadow: 0 2px 6px rgba(13, 35, 58, 0.25);
+
+  cursor: pointer;
+}
+
+.map-zoom button:hover {
+  background: var(--brand);
+}
+
+.map-zoom .map-zoom-fit {
+  font-size: 16px;
+}
+
+.map-zoom button:focus-visible,
+.map-modes button:focus-visible,
+.map-crumb:focus-visible,
+.map-info-close:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* ---------- карточка сведений ---------- */
+
+.map-info {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+
+  z-index: 3;
+
+  width: min(300px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding: 12px 14px 14px;
+
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: 0 6px 22px rgba(13, 35, 58, 0.18);
+
+  overflow-y: auto;
+}
+
+.map-info-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.map-info-kind {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  color: var(--text-faint);
+}
+
+.map-info-title {
+  margin: 2px 0 0;
+
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: balance;
+
+  color: var(--brand-deep);
+}
+
+.map-info-close {
+  flex: none;
+
+  width: 26px;
+  height: 26px;
+
+  border: none;
+  border-radius: 7px;
+  background: var(--surface-raised);
+  color: var(--text-dim);
+
+  font-size: 18px;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.map-info-close:hover {
+  background: var(--surface-hover);
+}
+
+.map-info-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 7px 9px;
+
+  border-radius: 9px;
+  background: var(--surface-raised);
+
+  font-size: 12.5px;
+}
+
+.map-info-state .map-legend-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.map-info-rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 12px;
+
+  margin: 0;
+
+  font-size: 12.5px;
+}
+
+.map-info-rows dt {
+  color: var(--text-faint);
+}
+
+.map-info-rows dd {
+  margin: 0;
+
+  font-variant-numeric: tabular-nums;
+
+  color: var(--text);
+}
+
+.map-info-alarm {
+  font-weight: 600;
+
+  color: var(--ms-alarm);
+}
+
+.map-info-list {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.map-info-actions {
   display: flex;
   flex-wrap: wrap;
+  gap: 6px;
+}
+
+.map-info-actions .btn {
+  flex: 1 1 auto;
+
+  padding: 7px 10px;
+}
+
+/* ---------- легенда ---------- */
+
+.map-foot {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 12px;
+  gap: 10px;
 
-  padding: 10px 12px;
+  padding: 8px 12px 12px;
 }
 
 .map-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 6px 14px;
 
   margin: 0;
   padding: 0;
@@ -2766,36 +3365,56 @@ circle.map-selected {
 }
 
 .map-legend li {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-.map-dot {
-  width: 10px;
-  height: 10px;
+.map-legend-icon {
+  flex: none;
+
+  width: 18px;
+  height: 18px;
+}
+
+.map-sys-icon {
+  flex: none;
+
+  display: inline-grid;
+  place-items: center;
+
+  width: 18px;
+  height: 18px;
 
   border-radius: 50%;
 
-  background: var(--st);
+  font-size: 10px;
+  font-weight: 800;
+
+  color: #ffffff;
 }
 
-.map-selection {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+.map-dash-icon {
+  width: 22px;
+  height: 0;
+
+  border-top: 3px dashed var(--brand-deep);
 }
 
-.map-selection-name {
-  font-size: 13px;
-  font-weight: 600;
+.map-link-icon {
+  width: 22px;
+  height: 0;
+
+  border-top: 1px solid rgba(13, 35, 58, 0.45);
 }
 
-.map-selection .btn {
+.map-scale {
   flex: none;
 
-  padding: 6px 12px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+
+  color: var(--text-faint);
 }
 
 /* =========================
