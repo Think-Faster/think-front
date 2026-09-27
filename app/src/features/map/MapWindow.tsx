@@ -1,7 +1,5 @@
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { formatBffErrorMessage } from '../../core/errors/bffError';
-import { objectRepository } from '../../entities/object/objectRepository';
 import { MonitoredObject } from '../../entities/object/types';
 import Button from '../../shared/ui/Button';
 import EmptyState from '../../shared/ui/EmptyState';
@@ -9,31 +7,13 @@ import { useSelectionStore } from '../../stores/selection/selectionStore';
 import { openWindow } from '../../stores/workspace/workspaceCommands';
 import { useObjects } from '../objects/hooks/useObjects';
 import { objectStatusLabels, objectStatusOrder } from '../objects/objectLabels';
-
-type Position = number[];
-
-interface Geometry {
-  type: string;
-  coordinates: unknown;
-}
-
-interface Feature {
-  geometry: Geometry | null;
-  properties: Record<string, unknown> | null;
-}
+import { Feature, Geometry, MapView, Position, useMapLayers } from './hooks/useMapLayers';
 
 interface Box {
   x: number;
   y: number;
   w: number;
   h: number;
-}
-
-// Что показывает карта: район целиком (уровень 1) или схему одного
-// коллектора (уровень 2) — трассы, ответвления, участки, пикеты.
-interface MapView {
-  level: 1 | 2;
-  objectId: number;
 }
 
 const PAN_THRESHOLD = 4;
@@ -95,61 +75,9 @@ function boundsOf(features: Feature[]): Box | null {
   return { x: minX - pad, y: minY - pad, w: w + pad * 2, h: h + pad * 2 };
 }
 
-function parseLayers(geoJsons: string[]): Feature[] {
-  return geoJsons.flatMap(text => {
-    try {
-      const parsed = JSON.parse(text) as { features?: Feature[] };
-      return parsed.features ?? [];
-    } catch {
-      return [];
-    }
-  });
-}
-
 function featureObjectId(feature: Feature): number | null {
   const id = feature.properties?.id;
   return typeof id === 'number' ? id : null;
-}
-
-function useMapLayers(view: MapView | null) {
-  const [features, setFeatures] = useState<Feature[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (!view) {
-      return;
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    setError('');
-
-    objectRepository
-      .getLayers(view.objectId, view.level)
-      .then(layers => {
-        if (!cancelled) {
-          setFeatures(parseLayers(layers.map(layer => layer.geoJson)));
-        }
-      })
-      .catch(err => {
-        if (!cancelled) {
-          setFeatures([]);
-          setError(formatBffErrorMessage(err, 'Не удалось загрузить схему.'));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [view]);
-
-  return { features, loading, error };
 }
 
 // «Карта»: схема района из слоёв BFF (/objects/{id}/layers), нарисованная

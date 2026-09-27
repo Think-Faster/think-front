@@ -1,4 +1,4 @@
-import { useMatch } from 'react-router-dom';
+import { matchPath, useLocation } from 'react-router-dom';
 
 import { isWindowVisible, WindowDefinition, windowRegistry } from '../../core/registry/windowRegistry';
 import { usePermissionsStore } from '../../stores/permissions/permissionsStore';
@@ -21,19 +21,18 @@ export default function WindowContent({ definition }: { definition: WindowDefini
 }
 
 // Подпись свёрнутого окна (§7.3): тип окна и его контекст — номер карточки
-// или выбранный объект.
+// из маршрута или выбранный объект. Что показывать, решает запись реестра
+// (route, followsSelection), а не id окна.
 export function useWindowContext(windowId: string): string {
-  const predictionMatch = useMatch('/predictions/:id');
-  const taskMatch = useMatch('/tasks/:id');
+  const { pathname } = useLocation();
   const objectId = useSelectionStore(state => state.objectId);
+  const definition = windowRegistry.find(item => item.id === windowId);
 
-  if (windowId === 'pred' && predictionMatch?.params.id) {
-    return `№ ${predictionMatch.params.id.slice(0, 8)}`;
+  const routeId = definition?.route ? matchPath(definition.route, pathname)?.params.id : undefined;
+  if (routeId) {
+    return `№ ${routeId.slice(0, 8)}`;
   }
-  if (windowId === 'taskDetail' && taskMatch?.params.id) {
-    return `№ ${taskMatch.params.id.slice(0, 8)}`;
-  }
-  if ((windowId === 'map' || windowId === 'objectHistory' || windowId === 'dataLog') && objectId !== null) {
+  if (definition?.followsSelection && objectId !== null) {
     return `объект #${objectId}`;
   }
   return '';

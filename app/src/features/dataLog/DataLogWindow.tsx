@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { usePermission } from '../../core/permissions/permissionService';
 import { factAlertRepository } from '../../entities/factAlert/factAlertRepository';
 import { FactAlert } from '../../entities/factAlert/types';
 import { usePagedList } from '../../shared/hooks/usePagedList';
@@ -20,6 +21,8 @@ export default function DataLogWindow() {
   const selectedId = useSelectionStore(state => state.objectId);
   const setSelectedId = useSelectionStore(state => state.setObjectId);
   const [search, setSearch] = useState('');
+  // «История объектов» требует objects:read, журнал данных — predictions:read.
+  const canOpenHistory = usePermission('objects', 'read');
 
   const list = usePagedList<FactAlert>(
     String(selectedId ?? ''),
@@ -38,7 +41,9 @@ export default function DataLogWindow() {
 
   function showObject(id: number) {
     setSelectedId(id);
-    openWindow('objectHistory');
+    if (canOpenHistory) {
+      openWindow('objectHistory');
+    }
   }
 
   return (

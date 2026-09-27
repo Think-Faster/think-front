@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useMatch } from 'react-router-dom';
+import { matchPath, useLocation } from 'react-router-dom';
 
 import { isWindowVisible, windowRegistry } from '../../core/registry/windowRegistry';
 import { usePermissionsStore } from '../../stores/permissions/permissionsStore';
@@ -25,22 +25,18 @@ function useSeedDefaultWindows() {
   }, [permissions, seeded]);
 }
 
-// Ссылка /predictions/:id или /tasks/:id открывает карточку, если её закрыли.
+// Ссылка на карточку (route в реестре) открывает её окно, если его закрыли.
+// Окно без прав не открывается — как и в шторке, его просто нет.
 function useRouteWindows() {
-  const predictionId = useMatch('/predictions/:id')?.params.id;
-  const taskId = useMatch('/tasks/:id')?.params.id;
+  const { pathname } = useLocation();
+  const permissions = usePermissionsStore(state => state.map);
 
   useEffect(() => {
-    if (predictionId) {
-      openWindow('pred');
+    const definition = windowRegistry.find(item => item.route && matchPath(item.route, pathname));
+    if (definition && isWindowVisible(definition, permissions)) {
+      openWindow(definition.id);
     }
-  }, [predictionId]);
-
-  useEffect(() => {
-    if (taskId) {
-      openWindow('taskDetail');
-    }
-  }, [taskId]);
+  }, [pathname, permissions]);
 }
 
 function DragGhost() {
