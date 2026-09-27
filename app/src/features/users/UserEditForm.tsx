@@ -19,9 +19,10 @@ export default function UserEditForm({ user, onSaved, onCancel }: UserEditFormPr
     middleName: user.middleName ?? '',
     authUserId: user.authUserId,
     isActive: user.isActive,
+    email: user.email ?? '',
   });
 
-  function setField(field: 'lastName' | 'firstName' | 'middleName' | 'authUserId') {
+  function setField(field: 'lastName' | 'firstName' | 'middleName' | 'authUserId' | 'email') {
     return (event: ChangeEvent<HTMLInputElement>) =>
       setForm(current => ({ ...current, [field]: event.target.value }));
   }
@@ -35,6 +36,7 @@ export default function UserEditForm({ user, onSaved, onCancel }: UserEditFormPr
       middleName: form.middleName || null,
       authUserId: form.authUserId,
       isActive: form.isActive,
+      email: form.email || null,
     });
 
     if (updated) {
@@ -62,6 +64,11 @@ export default function UserEditForm({ user, onSaved, onCancel }: UserEditFormPr
       <label>
         ID учётной записи
         <input value={form.authUserId} onChange={setField('authUserId')} disabled={loading} required />
+      </label>
+
+      <label>
+        Email (для уведомлений)
+        <input type="email" value={form.email} onChange={setField('email')} disabled={loading} />
       </label>
 
       <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
