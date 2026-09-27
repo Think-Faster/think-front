@@ -1,6 +1,6 @@
 import { apiClient } from '../../core/api/client';
 import { endpoints } from '../../core/api/endpoints';
-import { PagedResult } from '../../core/api/types';
+import { PagedResult, PageRequest } from '../../core/api/types';
 import {
   CreatePredictionDecisionRequest,
   Prediction,
@@ -9,7 +9,7 @@ import {
   PredictionStatus,
 } from './types';
 
-export interface PredictionFilter {
+export interface PredictionFilter extends PageRequest {
   objectId?: number;
   status?: PredictionStatus;
 }

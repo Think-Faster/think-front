@@ -1,87 +1,70 @@
-import { ChangeEvent, FormEvent, useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+import { useDataEvent } from '../../core/events/dataEvents';
 import { usePermission } from '../../core/permissions/permissionService';
-import { TaskSourceType } from '../../entities/task/types';
+import { taskRepository } from '../../entities/task/taskRepository';
+import { WorkTaskListItem, WorkTaskStatus } from '../../entities/task/types';
+import { usePagedList } from '../../shared/hooks/usePagedList';
 import Badge from '../../shared/ui/Badge';
 import Button from '../../shared/ui/Button';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
 import EmptyState from '../../shared/ui/EmptyState';
+import ListFooter from '../../shared/ui/ListFooter';
+import SearchField, { matchesSearch } from '../../shared/ui/SearchField';
+import { openWindow } from '../../stores/workspace/workspaceCommands';
 import { useObjects } from '../objects/hooks/useObjects';
-import { useCreateTask } from './hooks/useCreateTask';
-import { useTasks } from './hooks/useTasks';
-import {
-  taskSourceTypeLabels,
-  taskSourceTypeOptions,
-  taskStatusFilterOptions,
-  taskStatusLabels,
-  taskStatusTone,
-} from './taskLabels';
+import { taskSourceTypeLabels, taskStatusFilterOptions, taskStatusLabels, taskStatusTone } from './taskLabels';
 
-const emptyForm = {
-  number: '',
-  sourceType: 'call' as TaskSourceType,
-  objectId: '',
-  topic: '',
-  description: '',
-  workType: '',
-  faultClassification: '',
-  priority: '3',
-};
-
+// «Дневник диспетчера»: заявки, новые сверху (BFF сортирует по CreatedAt).
+// Создание вынесено в отдельное окно «Создать заявку» — кнопка здесь его
+// открывает, а после создания дневник перечитывается по событию.
 export default function TaskQueueWindow() {
   const location = useLocation();
   const { objects } = useObjects();
-  const { tasks, loading, error, status, setStatus, reload } = useTasks();
-  const { createTask, loading: creating, error: createError } = useCreateTask();
   const canCreate = usePermission('tasks', 'create');
+  const [status, setStatus] = useState<WorkTaskStatus | 'all'>('all');
+  const [search, setSearch] = useState('');
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const list = usePagedList<WorkTaskListItem>(
+    status,
+    query => taskRepository.getList({ ...query, status: status === 'all' ? undefined : status }),
+    'Не удалось загрузить заявки.'
+  );
+
+  useDataEvent('task.created', list.reload);
 
   function objectName(id: number): string {
     const object = objects.find(item => item.id === id);
     return object ? object.name : `#${id}`;
   }
 
-  function setField(field: keyof typeof emptyForm) {
-    return (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-      setForm(current => ({ ...current, [field]: event.target.value }));
-  }
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-
-    const created = await createTask({
-      number: form.number,
-      sourceType: form.sourceType,
-      objectId: Number(form.objectId),
-      topic: form.topic,
-      description: form.description || null,
-      workType: form.workType || null,
-      faultClassification: form.faultClassification || null,
-      priority: Number(form.priority),
-    });
-
-    if (created) {
-      setForm(emptyForm);
-      setShowCreate(false);
-      reload();
-    }
-  }
+  const shown = list.items.filter(task => matchesSearch(search, task.number, task.topic, objectName(task.objectId)));
 
   return (
     <>
+      <div className="win-search">
+        <SearchField value={search} onChange={setSearch} />
+        {canCreate && (
+          <Button variant="primary" onClick={() => openWindow('taskCreate')}>
+            Создать задачу
+          </Button>
+        )}
+      </div>
+
       <div className="win-toolbar">
         <ChipFilterGroup options={taskStatusFilterOptions} value={status} onChange={setStatus} />
       </div>
 
-      <div>
-        {loading && <EmptyState>Загрузка…</EmptyState>}
-        {error && <div className="status-note rej">{error}</div>}
-        {!loading && !error && tasks.length === 0 && <EmptyState>Заявок пока нет</EmptyState>}
+      <div className="card-list">
+        {list.loading && list.items.length === 0 && <EmptyState>Загрузка…</EmptyState>}
+        {list.error && <div className="status-note rej">{list.error}</div>}
+        {!list.loading && !list.error && list.items.length === 0 && <EmptyState>Заявок пока нет</EmptyState>}
+        {search && list.items.length > 0 && shown.length === 0 && (
+          <EmptyState>Среди загруженных заявок совпадений нет</EmptyState>
+        )}
 
-        {tasks.map(task => {
+        {shown.map(task => {
           const active = location.pathname === `/tasks/${task.id}`;
           const resolved = task.status === 'completed' || task.status === 'closed' || task.status === 'cancelled';
 
@@ -100,96 +83,15 @@ export default function TaskQueueWindow() {
               </div>
 
               <div className="queue-desc">{task.topic}</div>
-              <div className="queue-meta">{taskSourceTypeLabels[task.sourceType]}</div>
+              <div className="queue-meta">
+                {taskSourceTypeLabels[task.sourceType]} · {new Date(task.createdAt).toLocaleString('ru-RU')}
+              </div>
             </Link>
           );
         })}
+
+        <ListFooter count={list.items.length} hasMore={list.hasMore} loading={list.loading} onMore={list.loadMore} />
       </div>
-
-      {canCreate && (
-        <div className="pd-body">
-          {!showCreate ? (
-            <Button variant="primary" onClick={() => setShowCreate(true)}>
-              Добавить заявку
-            </Button>
-          ) : (
-            <form className="login-form" onSubmit={handleSubmit}>
-              <label>
-                Номер
-                <input value={form.number} onChange={setField('number')} disabled={creating} required />
-              </label>
-
-              <label>
-                Источник
-                <ChipFilterGroup
-                  options={taskSourceTypeOptions}
-                  value={form.sourceType}
-                  onChange={value => setForm(current => ({ ...current, sourceType: value }))}
-                />
-              </label>
-
-              <label>
-                Объект
-                <select value={form.objectId} onChange={setField('objectId')} disabled={creating} required>
-                  <option value="">— выбрать —</option>
-                  {objects.map(object => (
-                    <option key={object.id} value={object.id}>
-                      {object.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Тема
-                <input value={form.topic} onChange={setField('topic')} disabled={creating} required />
-              </label>
-
-              <label>
-                Описание
-                <input value={form.description} onChange={setField('description')} disabled={creating} />
-              </label>
-
-              <label>
-                Вид работ
-                <input value={form.workType} onChange={setField('workType')} disabled={creating} />
-              </label>
-
-              <label>
-                Классификация неисправности
-                <input
-                  value={form.faultClassification}
-                  onChange={setField('faultClassification')}
-                  disabled={creating}
-                />
-              </label>
-
-              <label>
-                Приоритет
-                <input
-                  type="number"
-                  value={form.priority}
-                  onChange={setField('priority')}
-                  disabled={creating}
-                  required
-                />
-              </label>
-
-              {createError && <div className="login-error">{createError}</div>}
-
-              <div className="pd-actions">
-                <Button type="button" onClick={() => setShowCreate(false)} disabled={creating}>
-                  Отмена
-                </Button>
-
-                <Button type="submit" variant="primary" disabled={creating}>
-                  {creating ? 'Создание…' : 'Добавить заявку'}
-                </Button>
-              </div>
-            </form>
-          )}
-        </div>
-      )}
     </>
   );
 }

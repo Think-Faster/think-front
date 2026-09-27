@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { config } from '../core/config/config';
 import LoginForm from '../features/auth/LoginForm';
+import { LogoMark } from '../shared/ui/icons';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -15,12 +16,9 @@ export default function LoginPage() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <div className="login-brand">
-          <span className="brand-mark" />
-          {config.appName}
-        </div>
+        <LogoMark className="login-logo" />
 
-        <div className="login-subtitle">Рабочее место диспетчера</div>
+        <h1 className="login-title">Авторизация</h1>
 
         <LoginForm onSuccess={handleSuccess} />
 
