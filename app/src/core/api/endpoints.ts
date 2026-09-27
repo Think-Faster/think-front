@@ -87,6 +87,9 @@ export const endpoints = {
     // Окно «Логи»: какие объекты и датчики пользователю видны (readings:read —
     // любые, инженеру — объекты его заявок в работе).
     readingsScope: '/bff/readings/scope',
+    notifications: {
+      sendEmail: '/bff/notifications/email',
+    },
   },
 
   // Показания датчиков хранит воронка (tf-funnel), не BFF: nginx отдаёт её
