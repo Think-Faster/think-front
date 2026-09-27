@@ -35,6 +35,24 @@ interface CityBase {
   at: Pt;
 }
 
+// Кадр в пределах города: не отдаляться дальше, чем город помещается в окно,
+// и не уводить его за край — граница сгенерированного города не видна.
+function clampView(box: Box, size: { w: number; h: number }, area: Box | null, minWidth: number): Box {
+  let unit = Math.max(box.w / size.w, box.h / size.h, minWidth / size.w);
+  if (area) {
+    unit = Math.min(unit, area.w / size.w, area.h / size.h);
+  }
+  const w = size.w * unit;
+  const h = size.h * unit;
+  let cx = box.x + box.w / 2;
+  let cy = box.y + box.h / 2;
+  if (area) {
+    cx = Math.min(Math.max(cx, area.x + w / 2), area.x + area.w - w / 2);
+    cy = Math.min(Math.max(cy, area.y + h / 2), area.y + area.h - h / 2);
+  }
+  return { x: cx - w / 2, y: cy - h / 2, w, h };
+}
+
 function niceStep(raw: number): number {
   for (const step of [1, 2, 5, 10, 20, 25, 50, 100, 200, 500]) {
     if (step >= raw) {
@@ -172,8 +190,37 @@ export default function MapWindow() {
     return schema.bounds;
   }, [mode, cityTraces, collector.bounds, schema.bounds]);
 
-  const [box, setBox] = useState<Box | null>(null);
+  const [rawBox, setRawBox] = useState<Box | null>(null);
   const fittedRef = useRef('');
+
+  const limitsRef = useRef({ size, area: null as Box | null, min: 70, max: 60000 });
+  limitsRef.current = {
+    size,
+    area: mode !== 'schema' ? city?.area ?? null : null,
+    min: mode === 'schema' ? 25 : 70,
+    max: mode === 'schema' && contentBounds ? Math.max(contentBounds.w, contentBounds.h) * 3 : Infinity,
+  };
+  const limit = useCallback((next: Box): Box => {
+    const { size: frame, area, min, max } = limitsRef.current;
+    const clamped = clampView(next, frame, area, min);
+    if (clamped.w <= max) {
+      return clamped;
+    }
+    const k = max / clamped.w;
+    const cx = clamped.x + clamped.w / 2;
+    const cy = clamped.y + clamped.h / 2;
+    return { x: cx - (clamped.w * k) / 2, y: cy - (clamped.h * k) / 2, w: clamped.w * k, h: clamped.h * k };
+  }, []);
+  const setBox = useCallback(
+    (next: Box | null | ((current: Box | null) => Box | null)) =>
+      setRawBox(current => {
+        const value = typeof next === 'function' ? next(current ? limit(current) : current) : next;
+        return value ? limit(value) : value;
+      }),
+    [limit]
+  );
+  // при смене окна или режима кадр снова вписываем в пределы
+  const box = rawBox ? limit(rawBox) : null;
   const fitKey = mode === 'city' ? 'city' : `${mode}:${collectorId}`;
 
   useEffect(() => {
@@ -181,7 +228,7 @@ export default function MapWindow() {
       fittedRef.current = fitKey;
       setBox(contentBounds);
     }
-  }, [fitKey, contentBounds]);
+  }, [fitKey, contentBounds, setBox]);
 
   // Приблизить к объекту: «показать на карте», переход из заявки.
   useEffect(() => {
@@ -196,7 +243,7 @@ export default function MapWindow() {
       setBox({ x: bounds.x + bounds.w / 2 - w / 2, y: bounds.y + bounds.h / 2 - h / 2, w: w * 1.6, h });
     }
     setFocus(null);
-  }, [focus, mode, collector.bounds, fitKey]);
+  }, [focus, mode, collector.bounds, fitKey, setBox]);
 
   // Фокус на участке ждёт, пока загрузится слой его коллектора.
   useEffect(() => {
@@ -223,23 +270,19 @@ export default function MapWindow() {
       }
     : null;
 
-  const limitsRef = useRef({ min: 60, max: 60000 });
-  limitsRef.current = {
-    min: mode === 'schema' ? 25 : 70,
-    max: contentBounds ? Math.max(contentBounds.w, contentBounds.h) * 3 : 60000,
-  };
-
-  const zoomAt = useCallback((factor: number, fx = 0.5, fy = 0.5) => {
-    setBox(current => {
-      if (!current) {
-        return current;
-      }
-      const { min, max } = limitsRef.current;
-      const w = Math.min(Math.max(current.w * factor, min), max);
-      const h = (w / current.w) * current.h;
-      return { x: current.x + (current.w - w) * fx, y: current.y + (current.h - h) * fy, w, h };
-    });
-  }, []);
+  const zoomAt = useCallback(
+    (factor: number, fx = 0.5, fy = 0.5) => {
+      setBox(current => {
+        if (!current) {
+          return current;
+        }
+        const w = current.w * factor;
+        const h = current.h * factor;
+        return { x: current.x + (current.w - w) * fx, y: current.y + (current.h - h) * fy, w, h };
+      });
+    },
+    [setBox]
+  );
 
   const hasBox = box !== null;
   useEffect(() => {
