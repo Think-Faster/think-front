@@ -84,11 +84,8 @@ export const endpoints = {
       list: '/bff/work-schedule',
       byId: (workId: number) => `/bff/work-schedule/${workId}`,
     },
-  },
-
-  // Не под /bff/ — контроллер на BFF смонтирован прямо на /notifications,
-  // см. docs/FRONTEND_INTEGRATION_NOTIFICATIONS.md.
-  notifications: {
-    sendEmail: '/notifications/email',
+    notifications: {
+      sendEmail: '/bff/notifications/email',
+    },
   },
 } as const;

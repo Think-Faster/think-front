@@ -604,7 +604,7 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
 этого нет, кроме как через drag того же раздела из сайдбара); бэкенд для
 раскладки (только `GridStorage`-граница под будущую замену).
 
-## Email-рассылка (`POST /notifications/email`)
+## Email-рассылка (`POST /bff/notifications/email`)
 
 Кнопка-конверт рядом с аватаром пользователя внизу шторки
 (`widgets/workspace/WorkspaceSidebar.tsx` → `.sidebar-user`) открывает
@@ -621,11 +621,12 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
   нет (тот же принцип, что и у гейтинга окон, просто не через реестр —
   реестр тут не подходит по смыслу).
 - **`entities/notification`** — `notificationRepository.sendEmail()`, один
-  метод, `POST /notifications/email` (эндпоинт **не** под `/bff/`, в
-  `core/api/endpoints.ts` — отдельный ключ верхнего уровня `notifications`,
-  как `auth`, а не вложенный в `bff`). Доставка асинхронная — `200` значит
-  «принято в очередь», не «доставлено»; UI это не переобещает нигде
-  (заголовок результата — «Принято в обработку N из M», не «отправлено»).
+  метод, `POST /bff/notifications/email` (`endpoints.bff.notifications.sendEmail`
+  в `core/api/endpoints.ts` — как и остальные BFF-ручки, под `bff.*`; тут
+  ошибся в первой версии, считал маршрут отдельным от `/bff/`, поправлено).
+  Доставка асинхронная — `200` значит «принято в очередь», не «доставлено»;
+  UI это не переобещает нигде (заголовок результата — «Принято в обработку
+  N из M», не «отправлено»).
 - **Успех/неуспех — не по HTTP-коду, а по `results[]`.** `SendEmailResponse`
   всегда `200`, даже если часть (или все) получателей не прошли —
   `EmailSendStatus` на каждого отдельно (`sent`/`rateLimited`/
@@ -667,6 +668,38 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
   `.form-card label` (класс+тег бьёт один класс) — сработало только после
   `label.recipient-item { ... }` той же специфичности, но позже по
   порядку в файле.
+
+### `shared/ui/Modal.tsx` — вынесен из email-формы, второй потребитель — редактирование объектов
+
+`SendEmailModal` был первой и единственной модалкой в приложении; когда
+понадобилась вторая (см. ниже), забивать `.modal-backdrop`/`.modal-header`/
+`useDismiss`-обвязку копипастой было бы неправильно — вынесен
+`shared/ui/Modal.tsx` (`title`, `onClose`, необязательный `footer`,
+`children`), `SendEmailModal.tsx` переписан на него первым, как проверка,
+что абстракция не потеряла ничего (включая ESC/клик-вне через `useDismiss`
+на `.modal`, ту же, что у `.user-menu-popover`).
+
+- **Кнопки формы внутри `children`, а не через `footer`, если форма и так
+  их уже рисует.** `SendEmailModal` выносит submit-кнопку в `footer`
+  специально (`form="send-email-form"` — HTML5-трюк, кнопка вне `<form>`,
+  но привязана к нему по id), чтобы она была прибита к низу модалки. Формы
+  редактирования сущностей (`*EditForm.tsx` — `ObjectEditForm`,
+  `UserEditForm` и т.д.) уже рисуют свои Отмена/Сохранить сами внутри
+  `.pd-actions`, внутри `<form>` — их не нужно перекраивать под
+  `footer`-слот, просто отдать форму целиком в `children`, `footer` у
+  `Modal` не указывать.
+- **`ObjectsPanel.tsx` — первое применение вне email.** Раньше клик
+  «Изменить» разворачивал `ObjectEditForm` инлайн под списком объектов
+  (нужно было скроллить вниз, чтобы её увидеть — особенно неудобно при
+  длинном списке или узком окне). Теперь — `<Modal title="Редактировать
+  объект" onClose={...}><div className="pd-body"><ObjectEditForm .../>
+  </div></Modal>`, форма создания (`canCreate`-блок) осталась как была,
+  инлайн под списком — это не то же самое неудобство (короткая статичная
+  форма, всегда в одном месте, не нужно её искать после клика на
+  случайную строку списка). Тот же приём стоит повторить для
+  `SensorsPanel`/`UsersPanel`/`GroupsPanel` при следующей правке — они
+  используют идентичный паттерн (`editingX ? <Form/> : canCreate &&
+  <CreateForm/>`), просто пока не были в задаче.
 
 ## Структура директорий
 
@@ -756,9 +789,12 @@ src/
 │   ├── retrainJob/
 │   │   ├── types.ts
 │   │   └── retrainJobRepository.ts    # GET/POST /bff/retrain-jobs — только заявка, не запуск
-│   └── ignoredRange/
-│       ├── types.ts
-│       └── ignoredRangeRepository.ts  # GET/POST/DELETE /bff/ignored-ranges[/{id}]
+│   ├── ignoredRange/
+│   │   ├── types.ts
+│   │   └── ignoredRangeRepository.ts  # GET/POST/DELETE /bff/ignored-ranges[/{id}]
+│   └── notification/
+│       ├── types.ts                    # SendEmailRequest/Response, SUBJECT_MAX_LENGTH/TEXT_MAX_LENGTH
+│       └── notificationRepository.ts  # POST /bff/notifications/email
 │
 ├── stores/                  # Zustand — только client state
 │   ├── auth/authStore.ts
@@ -813,14 +849,19 @@ src/
 │   │   ├── EngineerTab.tsx               # профиль инженера (upsert) + список/создание бригад
 │   │   ├── peopleLabels.ts
 │   │   └── hooks/{useSchedule,useAssignedObjects,useEngineerProfile,useBrigades,usePresence}.ts
-│   └── modelSettings/
-│       ├── ModelSettingsWindow.tsx      # окно workspace: 4 вкладки
-│       ├── ModelVersionsTab.tsx
-│       ├── CoefficientsTab.tsx
-│       ├── RetrainJobsTab.tsx
-│       ├── IgnoredRangesTab.tsx
-│       ├── modelSettingsLabels.ts
-│       └── hooks/{useModelVersions,useCoefficients,useRetrainJobs,useIgnoredRanges}.ts
+│   ├── modelSettings/
+│   │   ├── ModelSettingsWindow.tsx      # окно workspace: 4 вкладки
+│   │   ├── ModelVersionsTab.tsx
+│   │   ├── CoefficientsTab.tsx
+│   │   ├── RetrainJobsTab.tsx
+│   │   ├── IgnoredRangesTab.tsx
+│   │   ├── modelSettingsLabels.ts
+│   │   └── hooks/{useModelVersions,useCoefficients,useRetrainJobs,useIgnoredRanges}.ts
+│   └── notifications/
+│       ├── MailButton.tsx               # не окно workspace — гейтит себя локально, открывает Modal
+│       ├── SendEmailModal.tsx
+│       ├── notificationLabels.ts
+│       └── hooks/useSendEmail.ts
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
 │   ├── workspace/{WorkspaceCanvas,WorkspaceSidebar,GridColumnDivider,GridRowDivider}
@@ -828,7 +869,7 @@ src/
 │
 ├── shared/                  # ничего не знает про backend-сущности
 │   ├── ui/{Button,Badge,ChipFilterGroup,ProgressBar,StatChip,
-│   │        Breadcrumb,Window,EmptyState}.tsx
+│   │        Breadcrumb,Window,EmptyState,Modal}.tsx  # Modal — поверх всех окон, вне grid/free-раскладки
 │   └── hooks/{useInterval,useClock,useDismiss}.ts
 │
 └── pages/                   # тонкие точки для роутов
