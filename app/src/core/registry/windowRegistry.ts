@@ -37,6 +37,12 @@ export interface WindowDefinition {
   // Открывается при самом первом входе (пока раскладка ещё не сохранена) —
   // тем же путём, что и клик по разделу, см. widgets/workspace/WorkspaceCanvas.tsx.
   defaultOpen: boolean;
+  // Карточка по ссылке: переход на этот маршрут открывает окно, а номер из
+  // маршрута (:id) попадает в подпись свёрнутого окна (§7.3).
+  route?: string;
+  // Окно показывает объект, выбранный на карте: его номер попадает в
+  // подпись свёрнутого окна.
+  followsSelection?: boolean;
   // Все текущие окна завязаны на реальные BFF-ресурсы, поэтому
   // requiredPermission обязателен — окно видно, только если у пользователя
   // есть хотя бы одно из перечисленных прав (логическое ИЛИ). Если когда-то
@@ -73,6 +79,7 @@ export const windowRegistry: WindowDefinition[] = [
     component: MapWindow,
     section: 'primary',
     defaultOpen: true,
+    followsSelection: true,
     requiredPermission: [{ resource: 'objects', action: 'read' }],
   },
   {
@@ -97,6 +104,7 @@ export const windowRegistry: WindowDefinition[] = [
     component: ObjectHistoryWindow,
     section: 'primary',
     defaultOpen: false,
+    followsSelection: true,
     requiredPermission: [{ resource: 'objects', action: 'read' }],
   },
   {
@@ -114,6 +122,7 @@ export const windowRegistry: WindowDefinition[] = [
     component: DataLogWindow,
     section: 'primary',
     defaultOpen: false,
+    followsSelection: true,
     requiredPermission: [{ resource: 'predictions', action: 'read' }],
   },
   {
@@ -122,6 +131,7 @@ export const windowRegistry: WindowDefinition[] = [
     component: PredictionDetailWindow,
     section: 'detail',
     defaultOpen: false,
+    route: '/predictions/:id',
     requiredPermission: [{ resource: 'predictions', action: 'read' }],
   },
   {
@@ -130,6 +140,7 @@ export const windowRegistry: WindowDefinition[] = [
     component: TaskDetailWindow,
     section: 'detail',
     defaultOpen: false,
+    route: '/tasks/:id',
     requiredPermission: [{ resource: 'tasks', action: 'read' }],
   },
   {
