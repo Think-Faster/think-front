@@ -1,5 +1,6 @@
 import { PointerEvent, useEffect, useRef, useState } from 'react';
 
+import { BffErrorCode } from '../../core/errors/bffError';
 import { isWindowVisible, WindowDefinition, windowRegistry } from '../../core/registry/windowRegistry';
 import { SEGMENT_OPTIONS } from '../../core/workspace/gridConfig';
 import UserMenu from '../../features/auth/UserMenu';
@@ -198,6 +199,18 @@ function TrashZone() {
   );
 }
 
+// Почему прав нет: BFF отвечает 403 с кодом, текст ошибки у него английский.
+function permissionsErrorText(code: BffErrorCode | null): string {
+  switch (code) {
+    case 'user_not_provisioned':
+      return 'Учётная запись ещё не заведена в системе, поэтому разделов нет. Её добавляет администратор.';
+    case 'user_inactive':
+      return 'Учётная запись отключена. Обратитесь к администратору.';
+    default:
+      return 'Не удалось загрузить права, поэтому разделы скрыты.';
+  }
+}
+
 export default function WorkspaceSidebar() {
   const collapsed = useLayoutStore(state => state.sidebarCollapsed);
   const toggleSidebar = useLayoutStore(state => state.toggleSidebar);
@@ -206,6 +219,7 @@ export default function WorkspaceSidebar() {
   const setHint = useLayoutStore(state => state.setHint);
   const permissions = usePermissionsStore(state => state.map);
   const permissionsStatus = usePermissionsStore(state => state.status);
+  const permissionsError = usePermissionsStore(state => state.errorCode);
   const reloadPermissions = usePermissionsStore(state => state.load);
   const openIds = useOpenWindowIds();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -266,7 +280,7 @@ export default function WorkspaceSidebar() {
 
         {visible.length === 0 && permissionsStatus === 'error' && (
           <div className="sidebar-empty" role="alert">
-            <p>Не удалось загрузить права, поэтому разделы скрыты.</p>
+            <p>{permissionsErrorText(permissionsError)}</p>
             <button className="sidebar-empty-retry" onClick={() => reloadPermissions()}>
               Повторить
             </button>

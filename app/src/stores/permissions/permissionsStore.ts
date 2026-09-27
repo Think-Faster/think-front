@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { BffErrorCode, parseBffError } from '../../core/errors/bffError';
 import { permissionsApi } from '../../core/permissions/permissionsApi';
 import type { PermissionAction } from '../../core/permissions/permissionService';
 
@@ -12,6 +13,10 @@ export type PermissionsStatus = 'idle' | 'loading' | 'ready' | 'error';
 interface PermissionsState {
   map: PermissionsMap;
   status: PermissionsStatus;
+  // Код ошибки BFF при status = 'error': 403 бывает трёх видов
+  // (user_not_provisioned / user_inactive / permission_denied), шторка
+  // называет причину, а не пишет общее «не удалось».
+  errorCode: BffErrorCode | null;
   load: () => Promise<void>;
 }
 
@@ -25,15 +30,16 @@ interface PermissionsState {
 export const usePermissionsStore = create<PermissionsState>(set => ({
   map: {},
   status: 'idle',
+  errorCode: null,
 
   load: async () => {
-    set({ status: 'loading' });
+    set({ status: 'loading', errorCode: null });
     try {
       const response = await permissionsApi.getMyPermissions();
       set({ map: response.permissions ?? {}, status: 'ready' });
     } catch (error) {
       console.warn('GET /permissions/me недоступна — доступ к разделам с правами скрыт', error);
-      set({ map: {}, status: 'error' });
+      set({ map: {}, status: 'error', errorCode: parseBffError(error).code });
     }
   },
 }));
