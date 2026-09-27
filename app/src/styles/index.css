@@ -3150,27 +3150,26 @@ label.recipient-item {
   stroke-width: 0.6;
 }
 
-/* ---------- принципиальная схема ---------- */
+/* ---------- схема: коллектор в настоящей форме, пикеты узлами ---------- */
 
-.map-schema-band rect {
-  fill: var(--st);
-  fill-opacity: 0.06;
+.map-schema-band {
+  fill: none;
   stroke: var(--st);
-  stroke-opacity: 0.55;
-  stroke-dasharray: 6 4;
+  stroke-opacity: 0.28;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.map-schema-band:hover rect,
-.map-schema-band.map-selected rect {
-  fill-opacity: 0.14;
-  stroke-opacity: 1;
+.map-schema-band:hover,
+.map-schema-band.map-selected {
+  stroke-opacity: 0.5;
 }
 
-.map-schema-band .map-marker-disc {
+.map-schema-part .map-marker-disc {
   stroke-width: 1.5;
 }
 
-.map-schema-band-label {
+.map-schema-part-label {
   fill: var(--brand-deep);
   stroke: #ffffff;
   stroke-width: 3;
@@ -3185,32 +3184,41 @@ label.recipient-item {
   stroke: rgba(13, 35, 58, 0.28);
 }
 
-.map-schema-corridor path {
+.map-schema-chains path {
   fill: none;
   stroke: var(--brand-deep);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.map-schema-branch path {
+.map-schema-chains .map-schema-branch {
   stroke: #3b6aa6;
 }
 
-.map-schema-corridor text {
-  fill: var(--brand-deep);
-
-  font-weight: 700;
-}
-
-.map-schema-pickets path {
+.map-schema-nodes circle {
+  fill: #ffffff;
   stroke: var(--brand-deep);
 }
 
-.map-schema-pickets text {
+.map-schema-nodes .map-schema-node-busy {
+  fill: #9fb8d8;
+}
+
+.map-schema-picket-labels text {
   fill: var(--text-dim);
+  stroke: #ffffff;
+  paint-order: stroke;
 
   font-weight: 600;
   text-anchor: middle;
+}
+
+.map-schema-chain-names text {
+  fill: var(--brand-deep);
+  stroke: #ffffff;
+  paint-order: stroke;
+
+  font-weight: 800;
 }
 
 .map-schema-sensor circle:not(.map-marker-ring) {
