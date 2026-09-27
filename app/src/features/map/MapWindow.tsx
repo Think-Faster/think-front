@@ -1,5 +1,6 @@
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { usePermission } from '../../core/permissions/permissionService';
 import { MonitoredObject } from '../../entities/object/types';
 import Button from '../../shared/ui/Button';
 import EmptyState from '../../shared/ui/EmptyState';
@@ -83,11 +84,15 @@ function featureObjectId(feature: Feature): number | null {
 // «Карта»: схема района из слоёв BFF (/objects/{id}/layers), нарисованная
 // своим SVG — координаты в метрах схемы, тайловая подложка к ним не
 // подходит. Цвет участка — статус объекта из справочника. Клик выбирает
-// объект: «История объектов» и «Журнал данных» переключаются на него.
+// объект: «История объектов», «Журнал данных» и «Логи» переключаются на него.
 export default function MapWindow() {
   const { objects, loading: objectsLoading, error: objectsError } = useObjects();
   const selectedId = useSelectionStore(state => state.objectId);
   const setSelectedId = useSelectionStore(state => state.setObjectId);
+  // Кнопка «Логи» — тем, кому видно окно (windowRegistry: readings или tasks).
+  const canReadings = usePermission('readings', 'read');
+  const canTasks = usePermission('tasks', 'read');
+  const canLogs = canReadings || canTasks;
 
   const district = useMemo(() => objects.find(object => object.level === 1), [objects]);
   const [view, setView] = useState<MapView | null>(null);
@@ -316,6 +321,7 @@ export default function MapWindow() {
             {collector && view?.level === 1 && (
               <Button onClick={() => setView({ level: 2, objectId: collector.id })}>Схема участка</Button>
             )}
+            {canLogs && <Button onClick={() => openWindow('logs')}>Логи</Button>}
             <Button variant="primary" onClick={() => openWindow('objectHistory')}>
               История
             </Button>

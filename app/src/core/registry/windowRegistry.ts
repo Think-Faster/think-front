@@ -6,6 +6,7 @@ import AssetsWindow from '../../features/assets/AssetsWindow';
 import ConfigWindow from '../../features/config/ConfigWindow';
 import DataLogWindow from '../../features/dataLog/DataLogWindow';
 import IncidentsWindow from '../../features/incidents/IncidentsWindow';
+import LogsWindow from '../../features/logs/LogsWindow';
 import MapWindow from '../../features/map/MapWindow';
 import ModelSettingsWindow from '../../features/modelSettings/ModelSettingsWindow';
 import ObjectHistoryWindow from '../../features/objectHistory/ObjectHistoryWindow';
@@ -21,7 +22,7 @@ export interface WindowPermissionRequirement {
   action: PermissionAction;
 }
 
-// Где раздел живёт в сайдбаре: primary — шесть кнопок макета, more —
+// Где раздел живёт в сайдбаре: primary — шесть кнопок макета и «Логи», more —
 // служебные разделы под «Ещё разделы», detail — карточки, которые
 // открываются по ссылке из журналов и в сайдбаре не показываются.
 export type WindowSection = 'primary' | 'more' | 'detail';
@@ -124,6 +125,21 @@ export const windowRegistry: WindowDefinition[] = [
     defaultOpen: false,
     followsSelection: true,
     requiredPermission: [{ resource: 'predictions', action: 'read' }],
+  },
+  {
+    // Показания датчиков из воронки. readings:read — любой объект
+    // (диспетчеры, главные, администратор); с одним tasks:read окно видно
+    // инженеру, а объекты ему открывают его заявки в работе (BFF /readings/scope).
+    id: 'logs',
+    title: 'Логи',
+    component: LogsWindow,
+    section: 'primary',
+    defaultOpen: false,
+    followsSelection: true,
+    requiredPermission: [
+      { resource: 'readings', action: 'read' },
+      { resource: 'tasks', action: 'read' },
+    ],
   },
   {
     id: 'pred',
