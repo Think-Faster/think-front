@@ -2,11 +2,13 @@ import { FormEvent, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { usePermission } from '../../core/permissions/permissionService';
-import { ReturnTargetType } from '../../entities/task/types';
+import { ReturnTargetType, WorkTaskStatus } from '../../entities/task/types';
 import Badge from '../../shared/ui/Badge';
 import Button from '../../shared/ui/Button';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
 import EmptyState from '../../shared/ui/EmptyState';
+import { useSelectionStore } from '../../stores/selection/selectionStore';
+import { openWindow } from '../../stores/workspace/workspaceCommands';
 import { useObjects } from '../objects/hooks/useObjects';
 import { usePredictions } from '../predictions/hooks/usePredictions';
 import { useUsers } from '../users/hooks/useUsers';
@@ -19,6 +21,8 @@ import {
   taskStatusLabels,
   taskStatusTone,
 } from './taskLabels';
+
+const engineerOnSite: WorkTaskStatus[] = ['assigned', 'engineerWorking', 'returnedToWork'];
 
 export default function TaskDetailWindow() {
   const params = useParams<{ id: string }>();
@@ -41,6 +45,8 @@ export default function TaskDetailWindow() {
   } = useTask(params.id);
 
   const canAct = usePermission('tasks', 'update');
+  const canReadings = usePermission('readings', 'read');
+  const setSelectedId = useSelectionStore(state => state.setObjectId);
 
   const [predictionId, setPredictionId] = useState('');
   const [isPrimary, setIsPrimary] = useState(false);
@@ -72,6 +78,13 @@ export default function TaskDetailWindow() {
   const object = objects.find(item => item.id === task.objectId);
   const active = isTaskActive(task.status);
   const canEdit = canAct && active;
+  // Инженеру показания объекта открыты, пока он на заявке (BFF /readings/scope).
+  const canLogs = canReadings || engineerOnSite.includes(task.status);
+
+  function openLogs() {
+    setSelectedId(task!.objectId);
+    openWindow('logs');
+  }
 
   function userName(userId: string): string {
     const user = users.find(item => item.id === userId);
@@ -156,6 +169,12 @@ export default function TaskDetailWindow() {
       <p className="pd-loc">
         {object ? object.name : `Объект #${task.objectId}`} · {taskSourceTypeLabels[task.sourceType]}
       </p>
+
+      {canLogs && (
+        <div className="pd-actions">
+          <Button onClick={openLogs}>Логи объекта</Button>
+        </div>
+      )}
 
       {task.description && <p>{task.description}</p>}
 

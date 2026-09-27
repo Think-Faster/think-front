@@ -1,9 +1,9 @@
 import { apiClient } from '../../core/api/client';
 import { endpoints } from '../../core/api/endpoints';
-import { PagedResult } from '../../core/api/types';
+import { PagedResult, PageRequest } from '../../core/api/types';
 import { CreateSensorRequest, Sensor, UpdateSensorRequest } from './types';
 
-export interface SensorFilter {
+export interface SensorFilter extends PageRequest {
   objectId?: number;
   search?: string;
 }

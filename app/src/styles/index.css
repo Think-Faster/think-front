@@ -2055,6 +2055,111 @@ button.queue-item {
 }
 
 /* =========================
+   LOGS (показания датчиков)
+========================= */
+
+.log-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  font-size: 11px;
+
+  color: var(--text-dim);
+}
+
+.log-state::before {
+  content: '';
+
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+
+  background: var(--muted);
+}
+
+.log-state.live::before {
+  background: var(--green);
+  box-shadow: 0 0 0 3px var(--green-dim);
+}
+
+.log-state.reconnecting::before,
+.log-state.error::before {
+  background: var(--amber);
+}
+
+.log-note {
+  margin: 10px 12px 0;
+}
+
+.log-list {
+  display: flex;
+  flex-direction: column;
+
+  padding: 8px 12px 12px;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 10px;
+
+  padding: 6px 8px;
+
+  border-bottom: 1px solid var(--border);
+
+  font-size: 12px;
+}
+
+.log-row.alarm {
+  background: var(--red-dim);
+}
+
+.log-row.silent .log-value {
+  color: var(--text-faint);
+}
+
+.log-time,
+.log-value {
+  font-family:
+    'IBM Plex Mono',
+    monospace;
+
+  font-size: 11px;
+
+  font-variant-numeric: tabular-nums;
+}
+
+.log-time {
+  color: var(--text-faint);
+}
+
+.log-sensor {
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  color: var(--text);
+}
+
+.log-value {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.log-row.alarm .log-value {
+  color: var(--red);
+}
+
+.log-list .list-more,
+.log-list .list-end {
+  margin-top: 10px;
+}
+
+/* =========================
    GRANT TABLE
 ========================= */
 

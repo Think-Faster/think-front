@@ -7,8 +7,8 @@ export interface Sensor {
   tag: string | null;
   name: string;
   isActive: boolean;
-  // Текущего значения/состояния здесь нет намеренно — это снимок потока
-  // tf-funnel (ещё не подключён), а не часть карточки датчика.
+  // Текущего значения/состояния здесь нет намеренно — показания идут из
+  // воронки tf-funnel (окно «Логи»), а не из карточки датчика.
 }
 
 export interface CreateSensorRequest {

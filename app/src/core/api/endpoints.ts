@@ -84,5 +84,15 @@ export const endpoints = {
       list: '/bff/work-schedule',
       byId: (workId: number) => `/bff/work-schedule/${workId}`,
     },
+    // Окно «Логи»: какие объекты и датчики пользователю видны (readings:read —
+    // любые, инженеру — объекты его заявок в работе).
+    readingsScope: '/bff/readings/scope',
+  },
+
+  // Показания датчиков хранит воронка (tf-funnel), не BFF: nginx отдаёт её
+  // под /api/funnel/*, права воронка спрашивает у BFF (/readings/scope).
+  funnel: {
+    log: '/funnel/log',
+    stream: '/funnel/stream',
   },
 } as const;
