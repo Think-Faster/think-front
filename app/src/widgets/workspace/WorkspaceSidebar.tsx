@@ -4,6 +4,7 @@ import { BffErrorCode } from '../../core/errors/bffError';
 import { isWindowVisible, WindowDefinition, windowRegistry } from '../../core/registry/windowRegistry';
 import { SEGMENT_OPTIONS } from '../../core/workspace/gridConfig';
 import UserMenu from '../../features/auth/UserMenu';
+import MailButton from '../../features/notifications/MailButton';
 import { CurtainIcon, LogoMark, MinusCircleIcon, PlusCircleIcon, TrashIcon } from '../../shared/ui/icons';
 import { usePermissionsStore } from '../../stores/permissions/permissionsStore';
 import { useFreeStore } from '../../stores/workspace/freeStore';
@@ -332,6 +333,7 @@ export default function WorkspaceSidebar() {
         <TrashZone />
 
         <div className="sidebar-user">
+          <MailButton />
           <UserMenu />
         </div>
       </div>

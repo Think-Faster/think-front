@@ -912,6 +912,35 @@ header {
 
   display: flex;
   align-items: center;
+  gap: 10px;
+}
+
+.mail-btn {
+  width: 36px;
+  height: 36px;
+  flex: none;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border-radius: 50%;
+  border: 2px solid var(--on-brand);
+
+  background: transparent;
+  color: #ffffff;
+
+  cursor: pointer;
+}
+
+.mail-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.mail-btn svg {
+  width: 17px;
+  height: 17px;
 }
 
 .sidebar-user .avatar {
@@ -1824,6 +1853,149 @@ button.queue-item {
   opacity: 0.6;
 
   cursor: default;
+}
+
+/* =========================
+   MODAL (email-рассылка и т.п. — не привязано к workspace-сетке/трею)
+========================= */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+
+  z-index: 4000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+
+  background: rgba(13, 35, 58, 0.45);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+
+  width: min(720px, 100%);
+  max-height: 86vh;
+
+  border-radius: 14px;
+
+  background: var(--bg);
+  box-shadow: 0 20px 60px rgba(13, 35, 58, 0.35);
+
+  overflow: hidden;
+}
+
+.modal-header {
+  flex: none;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  height: 48px;
+  padding: 0 10px 0 20px;
+
+  background: var(--grad);
+  color: #ffffff;
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.modal-body .form-card {
+  margin: 0;
+  border-radius: 0;
+}
+
+.modal-footer {
+  flex: none;
+
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+
+  padding: 14px 20px;
+
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.recipient-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  max-height: 180px;
+
+  padding: 8px 10px;
+
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+
+  background: var(--bg);
+
+  overflow-y: auto;
+}
+
+label.recipient-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* .form-card input задаёт width: 100% всем полям формы — чекбоксу здесь
+   нужен обратно его нативный размер, иначе его layout-box растягивается на
+   всю строку и отталкивает подпись к правому краю. */
+.recipient-item input[type='checkbox'] {
+  width: auto;
+  flex: none;
+}
+
+.recipient-item.no-email {
+  color: var(--text-faint);
+}
+
+.recipient-warning {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.recipient-empty {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.char-counter {
+  margin-top: -6px;
+
+  font-size: 11px;
+  color: var(--text-faint);
+  text-align: right;
+}
+
+.char-counter.over {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.email-results {
+  padding: 16px;
 }
 
 /* =========================

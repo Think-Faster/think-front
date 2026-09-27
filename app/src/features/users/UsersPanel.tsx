@@ -58,6 +58,7 @@ export default function UsersPanel() {
         : {
             accountSource: 'existing',
             authUserId: form.authUserId,
+            email: form.email,
             lastName: form.lastName,
             firstName: form.firstName,
             middleName: form.middleName,
@@ -86,6 +87,7 @@ export default function UsersPanel() {
           </span>
 
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="d">{user.email ?? 'нет email'}</span>
             <span className="d">{user.isActive ? 'активен' : 'неактивен'}</span>
 
             {canEdit && (
@@ -162,17 +164,30 @@ export default function UsersPanel() {
                   </label>
                 </>
               ) : (
-                <label>
-                  ID учётной записи
-                  <input
-                    value={form.authUserId}
-                    onChange={setField('authUserId')}
-                    placeholder="uuid из сервиса аутентификации"
-                    autoComplete="off"
-                    disabled={creating}
-                    required
-                  />
-                </label>
+                <>
+                  <label>
+                    ID учётной записи
+                    <input
+                      value={form.authUserId}
+                      onChange={setField('authUserId')}
+                      placeholder="uuid из сервиса аутентификации"
+                      autoComplete="off"
+                      disabled={creating}
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    Email (для уведомлений)
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={setField('email')}
+                      autoComplete="off"
+                      disabled={creating}
+                    />
+                  </label>
+                </>
               )}
 
               <label>
