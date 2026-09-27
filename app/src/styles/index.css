@@ -655,6 +655,51 @@ header {
   color: #ffffff;
 }
 
+/* Разделов нет: прав нет, права грузятся или запрос не прошёл. */
+.sidebar-empty {
+  width: 196px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+
+  margin: 0;
+  padding: 10px 12px;
+
+  border: 2px dashed rgba(242, 243, 247, 0.35);
+  border-radius: 12px;
+
+  color: rgba(242, 243, 247, 0.85);
+
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.sidebar-empty p {
+  margin: 0;
+}
+
+.sidebar-empty-retry {
+  padding: 6px 14px;
+
+  border: 2px solid var(--on-brand);
+  border-radius: 12px;
+
+  background: transparent;
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 500;
+
+  cursor: pointer;
+}
+
+.sidebar-empty-retry:hover {
+  background: var(--on-brand);
+  color: var(--brand-deep);
+}
+
 .sidebar-bottom {
   flex: none;
 
