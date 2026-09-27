@@ -1,6 +1,6 @@
 import { apiClient } from '../../core/api/client';
 import { endpoints } from '../../core/api/endpoints';
-import { PagedResult } from '../../core/api/types';
+import { PagedResult, PageRequest } from '../../core/api/types';
 import {
   AddTaskPredictionRequest,
   CreateTaskAssignmentRequest,
@@ -17,7 +17,9 @@ import {
   WorkTaskStatus,
 } from './types';
 
-export interface TaskFilter {
+// Фильтра по объекту у GET /tasks нет — «История объектов» отбирает заявки
+// объекта на клиенте.
+export interface TaskFilter extends PageRequest {
   dispatcherId?: string;
   status?: WorkTaskStatus;
 }

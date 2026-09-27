@@ -1,15 +1,32 @@
 :root {
-  --bg: #f4f6f8;
+  /* Палитра макета «думай резче» (Даша): фон #F2F3F7, фирменный градиент
+     #175289 ↔ #0D233A, неактивное #878789. */
+  --bg: #f2f3f7;
   --surface: #ffffff;
   --surface-raised: #f7f8fa;
-  --surface-hover: #eef1f4;
+  --surface-hover: #eceef3;
 
-  --border: #dfe3e8;
-  --border-strong: #c7ccd3;
+  --border: #dfe2e9;
+  --border-strong: #c8ccd6;
 
-  --text: #1c2430;
-  --text-dim: #5b6675;
-  --text-faint: #88919c;
+  --text: #0d233a;
+  --text-dim: #4a5a6c;
+  --text-faint: #878789;
+  --muted: #878789;
+
+  --brand: #175289;
+  --brand-deep: #0d233a;
+  --brand-dim: rgba(23, 82, 137, 0.1);
+  --on-brand: #f2f3f7;
+
+  --grad: linear-gradient(135deg, #175289 0%, #0d233a 100%);
+  --grad-side: linear-gradient(95deg, #0d233a 0%, #175289 100%);
+  --grad-text: linear-gradient(90deg, #175289 0%, #0d233a 100%);
+
+  --canvas-line: rgba(13, 35, 58, 0.12);
+  --cell-line: rgba(23, 82, 137, 0.3);
+
+  --sidebar-width: 240px;
 
   --amber: #b8791f;
   --amber-dim: rgba(184, 121, 31, 0.1);
@@ -17,8 +34,8 @@
   --red: #c23b2b;
   --red-dim: rgba(194, 59, 43, 0.1);
 
-  --cyan: #2f6fb0;
-  --cyan-dim: rgba(47, 111, 176, 0.1);
+  --cyan: #175289;
+  --cyan-dim: rgba(23, 82, 137, 0.1);
 
   --green: #3f8a52;
   --green-dim: rgba(63, 138, 82, 0.1);
@@ -52,7 +69,7 @@ body {
   color: var(--text);
 
   font-family:
-    'Archivo',
+    'Montserrat',
     system-ui,
     sans-serif;
 
@@ -134,9 +151,11 @@ a {
 }
 
 .shell {
-  display: flex;
-  flex-direction: column;
+  position: relative;
+
   height: 100%;
+
+  overflow: hidden;
 }
 
 /* =========================
@@ -419,138 +438,564 @@ header {
 }
 
 /* =========================
-   SHELL BODY / SIDEBAR
+   SIDEBAR («шторка», макет «думай резче»)
+   Размеры — из «Правила отступов»: ширина 240, кнопки 196×35 с шагом 16,
+   первая на 118 от верха, от мусорки до низа 75.
 ========================= */
 
-.shell-body {
-  flex: 1;
-
-  display: flex;
-  min-height: 0;
-}
-
 .sidebar {
-  flex: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
 
-  width: 220px;
+  z-index: 1000;
+
+  width: var(--sidebar-width);
 
   display: flex;
   flex-direction: column;
-  gap: 6px;
 
-  padding: 14px 12px;
+  background: var(--grad-side);
+  color: var(--on-brand);
+
+  box-shadow: 4px 0 20px rgba(13, 35, 58, 0.25);
+}
+
+.sidebar :focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.sidebar.collapsed {
+  top: 10px;
+  bottom: auto;
+  left: 10px;
+
+  width: auto;
+
+  background: none;
+  box-shadow: none;
+}
+
+.sidebar-orb {
+  display: block;
+
+  width: 36px;
+  height: 36px;
+
+  padding: 0;
+
+  border: none;
+  border-radius: 50%;
+
+  background: var(--grad);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.25);
+
+  cursor: pointer;
+}
+
+.sidebar-orb:hover {
+  box-shadow: 0 0 14px rgba(0, 0, 0, 0.4);
+}
+
+.sidebar-top {
+  position: relative;
+
+  flex: none;
+  height: 118px;
+}
+
+.sidebar-logo {
+  position: absolute;
+  top: 25px;
+  left: 23px;
+
+  width: 55px;
+  height: 27px;
+
+  color: var(--on-brand);
+}
+
+.sidebar-curtain {
+  position: absolute;
+  top: 28px;
+  right: 22px;
+
+  width: 30px;
+  height: 28px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border: none;
+  background: none;
+  color: var(--on-brand);
+
+  cursor: pointer;
+}
+
+.sidebar-curtain svg {
+  width: 28px;
+  height: 26px;
+}
+
+.sidebar-curtain:hover {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.6));
+}
+
+.sidebar-scroll {
+  flex: 1;
+  min-height: 0;
+
   overflow-y: auto;
 
-  background: var(--surface);
-  border-right: 1px solid var(--border);
+  padding: 0 22px 12px;
+
+  scrollbar-width: thin;
+  scrollbar-color: rgba(242, 243, 247, 0.35) transparent;
 }
 
-.sidebar-label {
-  font-size: 10.5px;
-  font-weight: 600;
-
-  color: var(--text-faint);
-
-  margin-bottom: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.sidebar-item {
+/* Кнопка раздела: дефолт — обводка; фокус — заливка, текст градиентом,
+   тень; выбрано (окно открыто) — заливка без тени. */
+.side-btn {
+  width: 196px;
+  height: 35px;
+  flex: none;
+
   display: flex;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
 
-  padding: 8px 10px;
+  padding: 0 12px;
 
-  border-radius: 7px;
-  border: 1px solid transparent;
+  border: 2px solid var(--on-brand);
+  border-radius: 12px;
 
   background: transparent;
-  color: var(--text-dim);
+  color: var(--on-brand);
 
-  font-size: 12.5px;
-  text-align: left;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
 
   cursor: pointer;
   touch-action: none;
+  user-select: none;
+
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
 }
 
-.sidebar-item:hover {
-  background: var(--surface-hover);
+.side-btn-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.sidebar-item.on {
-  background: var(--cyan-dim);
-  color: var(--text);
-  border-color: var(--cyan);
+.side-btn:hover,
+.side-btn:focus-visible,
+.side-btn.on {
+  background: var(--on-brand);
 }
 
-.sidebar-item::before {
-  content: '';
+.side-btn:hover,
+.side-btn:focus-visible {
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
 
-  width: 6px;
-  height: 6px;
+.side-btn:hover .side-btn-text,
+.side-btn:focus-visible .side-btn-text,
+.side-btn.on .side-btn-text {
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.side-btn.compact {
+  height: 30px;
+
+  font-size: 13px;
+}
+
+.sidebar-more {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  margin-top: 16px;
+}
+
+.sidebar-more-toggle {
+  align-self: flex-start;
+
+  padding: 0;
+
+  border: none;
+  background: none;
+  color: rgba(242, 243, 247, 0.75);
+
+  font-size: 13px;
+  font-weight: 500;
+
+  cursor: pointer;
+}
+
+.sidebar-more-toggle:hover {
+  color: #ffffff;
+}
+
+.sidebar-bottom {
   flex: none;
 
-  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 
-  background: var(--border-strong);
+  padding: 12px 22px 0;
 }
 
-.sidebar-item.on::before {
-  background: var(--cyan);
+.overlap-label {
+  max-width: 170px;
+
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.3;
+
+  color: #ffffff;
 }
 
-.sidebar-drag-ghost {
-  position: fixed;
+/* Слайдер «Нет | Да»: белая подложка 131×35, ползунок 68 px градиентом
+   с текущим значением. */
+.overlap-switch {
+  position: relative;
 
-  z-index: 2000;
-  pointer-events: none;
+  width: 131px;
+  height: 35px;
 
-  transform: translate(12px, 12px);
+  margin-top: 10px;
+  padding: 0;
 
-  padding: 6px 11px;
+  border: 2px solid var(--on-brand);
+  border-radius: 14px;
 
-  border-radius: 6px;
-  border: 1px solid var(--border-strong);
+  background: #ffffff;
 
-  background: var(--surface-raised);
-  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.overlap-knob {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+
+  width: 68px;
+  height: 35px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 2px solid var(--on-brand);
+  border-radius: 14px;
+
+  background: var(--grad-side);
+  color: #ffffff;
+
+  font-size: 15px;
+  font-weight: 500;
+
+  transition: left 0.2s ease;
+}
+
+.overlap-switch.yes .overlap-knob {
+  left: 61px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-top: 15px;
+
+  color: #ffffff;
+}
+
+.stepper.is-hidden {
+  visibility: hidden;
+}
+
+.stepper-btn {
+  width: 24px;
+  height: 24px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border: none;
+  background: none;
+  color: #ffffff;
+
+  cursor: pointer;
+}
+
+.stepper-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.stepper-btn:hover:not(:disabled) svg {
+  filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.9));
+}
+
+.stepper-btn:active:not(:disabled) .icon-inner {
+  fill: #b2b2b2;
+}
+
+.stepper-btn:disabled {
+  color: var(--muted);
+
+  cursor: default;
+}
+
+.stepper-value {
+  min-width: 20px;
+
+  text-align: center;
+
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sidebar-gap {
+  width: 100%;
+  height: clamp(40px, 10vh, 96px);
+
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-hint {
+  width: 196px;
+
+  padding: 8px 10px;
+
+  border-radius: 10px;
+
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
 
   font-size: 12px;
-
-  box-shadow: 0 6px 16px rgba(15, 23, 32, 0.14);
+  line-height: 1.35;
 }
 
-.sidebar-drag-ghost.droppable {
-  border-color: var(--cyan);
+/* Мусорка: окно, брошенное сюда, закрывается. Пока тянут окно — она
+   подсвечена, под курсором — растёт до 85 px и остаётся одна иконка. */
+.trash {
+  width: 196px;
+  height: 73px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  border-radius: 12px;
+
+  background: var(--on-brand);
+  color: var(--brand);
+
+  transition:
+    height 0.15s,
+    margin 0.15s,
+    box-shadow 0.15s;
+}
+
+.trash-icon {
+  width: 26px;
+  height: 26px;
+
+  transition:
+    width 0.15s,
+    height 0.15s;
+}
+
+.trash-text {
+  font-size: 13px;
+  font-weight: 500;
+
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.trash.armed {
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 0 20px rgba(0, 0, 0, 0.4);
+}
+
+.trash.over {
+  height: 85px;
+  margin-top: -12px;
+}
+
+.trash.over .trash-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.sidebar-user {
+  width: 100%;
+  height: 75px;
+
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-user .avatar {
+  width: 36px;
+  height: 36px;
+
+  border-radius: 50%;
+  border: 2px solid var(--on-brand);
+
+  background: transparent;
+  color: #ffffff;
+
+  font-size: 13px;
+}
+
+.sidebar-user .avatar:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* В шторке меню пользователя открывается вверх — снизу места нет. */
+.sidebar-user .user-menu-popover {
+  top: auto;
+  right: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
+
   color: var(--text);
 }
 
 /* =========================
-   WORKSPACE / GRID
+   WORKSPACE
+   Холст на весь экран: фон #F2F3F7 и сетка 48 px, шторка лежит поверх
+   слева. В сетке окна не должны уходить под шторку — отступ слева.
 ========================= */
 
 .workspace {
-  flex: 1;
+  position: absolute;
+  inset: 0;
 
-  overflow: auto;
-  min-height: 0;
+  overflow: hidden;
 
-  padding: 16px;
-
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--canvas-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--canvas-line) 1px, transparent 1px);
+  background-size: 48px 48px;
 }
+
+.workspace.mode-grid {
+  overflow: auto;
+
+  padding-left: var(--sidebar-width);
+}
+
+.shell.sidebar-collapsed .workspace.mode-grid {
+  padding-left: 56px;
+}
+
+/* =========================
+   GRID (сегменты 4/6/8/10, окна не пересекаются)
+========================= */
 
 .grid-canvas {
   display: grid;
+
   min-width: fit-content;
+  height: 100%;
+
+  padding: 16px;
+}
+
+.grid-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 0;
+  min-height: 0;
+
+  border: 2px dashed var(--cell-line);
+  border-radius: 12px;
+
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.grid-cell-hint {
+  font-size: 13px;
+
+  color: var(--muted);
+
+  text-align: center;
+
+  padding: 0 12px;
+}
+
+.grid-slot {
+  position: relative;
+  z-index: 1;
+
+  min-width: 0;
+  min-height: 0;
+}
+
+.grid-cell.drop-target {
+  border-color: var(--brand);
+  background: var(--brand-dim);
+}
+
+.grid-slot.drop-target::after {
+  content: '';
+
+  position: absolute;
+  inset: 0;
+
+  border-radius: 12px;
+
+  box-shadow: inset 0 0 0 3px var(--brand);
+  background: var(--brand-dim);
+
+  pointer-events: none;
 }
 
 .grid-divider {
+  position: relative;
+  z-index: 2;
+
+  border-radius: 4px;
+
   background: transparent;
-  cursor: default;
 }
 
 .grid-divider-col {
@@ -563,40 +1008,155 @@ header {
 
 .grid-divider:hover,
 .grid-divider:active {
-  background: var(--cyan-dim);
+  background: var(--brand-dim);
 }
 
-.grid-add-col,
-.grid-add-row {
+/* =========================
+   FREE («внахлёст»)
+========================= */
+
+.free-canvas {
+  position: absolute;
+  inset: 0;
+
+  overflow: hidden;
+}
+
+.win.win-free {
+  position: absolute;
+
+  box-shadow: 0 10px 30px rgba(13, 35, 58, 0.18);
+}
+
+.win-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+
+  width: 18px;
+  height: 18px;
+
+  cursor: nwse-resize;
+  touch-action: none;
+
+  background: linear-gradient(
+    135deg,
+    transparent 55%,
+    rgba(13, 35, 58, 0.3) 55%,
+    rgba(13, 35, 58, 0.3) 62%,
+    transparent 62%,
+    transparent 75%,
+    rgba(13, 35, 58, 0.3) 75%,
+    rgba(13, 35, 58, 0.3) 82%,
+    transparent 82%
+  );
+}
+
+/* =========================
+   MINIMIZED (полоска: тип окна + контекст)
+========================= */
+
+.min-tray {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+
+  z-index: 900;
+
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+
+  width: 280px;
+}
+
+.min-strip-row {
+  display: flex;
+
+  border-radius: 12px;
+  overflow: hidden;
+
+  box-shadow: 0 6px 18px rgba(13, 35, 58, 0.2);
+}
+
+.min-strip {
+  flex: 1;
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+
+  padding: 8px 14px;
 
   border: none;
-  background: transparent;
-  color: var(--text-faint);
 
-  font-size: 15px;
+  background: var(--grad);
+  color: #ffffff;
+
+  text-align: left;
 
   cursor: pointer;
 }
 
-.grid-add-col:hover,
-.grid-add-row:hover {
-  background: var(--surface-hover);
-  color: var(--text-dim);
+.min-strip:hover {
+  filter: brightness(1.12);
 }
 
-.drop-target-right {
-  box-shadow: inset -3px 0 0 0 var(--cyan);
+.min-title {
+  max-width: 100%;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.drop-target-bottom {
-  box-shadow: inset 0 -3px 0 0 var(--cyan);
+.min-ctx {
+  font-size: 11px;
+
+  opacity: 0.8;
+}
+
+.min-close {
+  flex: none;
+  width: 36px;
+
+  border: none;
+
+  background: var(--brand-deep);
+  color: #ffffff;
+
+  font-size: 18px;
+
+  cursor: pointer;
+}
+
+.min-close:hover {
+  background: var(--red);
+}
+
+.cell-minimized {
+  height: 100%;
+
+  display: flex;
+  align-items: flex-start;
+}
+
+.cell-minimized .min-strip {
+  flex: none;
+  width: 100%;
+
+  border-radius: 12px;
+
+  box-shadow: 0 6px 18px rgba(13, 35, 58, 0.2);
 }
 
 /* =========================
-   WINDOWS
+   WINDOWS: шапка градиентом, белый заголовок, ↻ – ×
 ========================= */
 
 .win {
@@ -608,11 +1168,9 @@ header {
 
   background: var(--bg);
 
-  border: 1px solid var(--border-strong);
-  border-radius: 9px;
+  border-radius: 12px;
 
-  box-shadow:
-    0 1px 3px rgba(15, 23, 32, 0.08);
+  box-shadow: 0 4px 16px rgba(13, 35, 58, 0.12);
 
   overflow: hidden;
 }
@@ -624,44 +1182,72 @@ header {
   align-items: center;
   gap: 8px;
 
-  padding: 9px 10px;
+  height: 40px;
 
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  padding: 0 8px 0 16px;
+
+  background: var(--grad);
+  color: #ffffff;
 
   user-select: none;
+  touch-action: none;
+
+  cursor: grab;
+}
+
+.win-head:active {
+  cursor: grabbing;
 }
 
 .win-title {
-  font-size: 12.5px;
-  font-weight: 600;
-
   flex: 1;
+
+  font-size: 14px;
+  font-weight: 600;
 
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.win-close {
-  width: 20px;
-  height: 20px;
-
-  border: none;
-  border-radius: 5px;
-
-  background: transparent;
-  color: var(--text-faint);
-
-  cursor: pointer;
-
-  font-size: 18px;
-  line-height: 1;
+.win-actions {
+  display: flex;
+  gap: 2px;
 }
 
-.win-close:hover {
-  background: var(--red-dim);
-  color: var(--red);
+.win-btn {
+  width: 26px;
+  height: 26px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border: none;
+  border-radius: 8px;
+
+  background: transparent;
+  color: #ffffff;
+
+  cursor: pointer;
+}
+
+.win-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.win-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.win-btn.win-close:hover {
+  background: var(--red);
+}
+
+.win-head :focus-visible {
+  outline-color: #ffffff;
 }
 
 .win-body {
@@ -669,6 +1255,45 @@ header {
 
   overflow: auto;
   min-height: 0;
+}
+
+.win.dragging {
+  opacity: 0.85;
+}
+
+.win.to-trash {
+  box-shadow:
+    0 0 0 3px var(--red),
+    0 10px 30px rgba(13, 35, 58, 0.18);
+}
+
+.win.to-trash .win-head {
+  background: var(--red);
+}
+
+.drag-ghost {
+  position: fixed;
+
+  z-index: 3000;
+  pointer-events: none;
+
+  transform: translate(12px, 12px);
+
+  padding: 8px 14px;
+
+  border-radius: 12px;
+
+  background: var(--grad);
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  box-shadow: 0 6px 16px rgba(13, 35, 58, 0.25);
+}
+
+.drag-ghost.to-trash {
+  background: var(--red);
 }
 
 /* =========================
@@ -682,9 +1307,12 @@ header {
 
   flex-wrap: wrap;
 
-  padding: 8px 10px;
+  padding: 10px 12px 0;
+}
 
-  border-bottom: 1px solid var(--border);
+.win-toolbar select {
+  border-radius: 10px;
+  border-color: var(--cell-line);
 
   background: var(--surface);
 }
@@ -702,23 +1330,28 @@ header {
 }
 
 .chip-filter {
-  font-size: 11px;
+  font-size: 12px;
 
-  padding: 4px 9px;
+  padding: 5px 11px;
 
-  border-radius: 14px;
+  border-radius: 12px;
 
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--cell-line);
 
-  background: transparent;
-  color: var(--text-dim);
+  background: var(--surface);
+  color: var(--text);
 
   cursor: pointer;
 }
 
+.chip-filter:hover {
+  border-color: var(--brand);
+}
+
 .chip-filter.active {
-  background: var(--surface-raised);
-  color: var(--text);
+  background: var(--grad);
+  border-color: transparent;
+  color: #ffffff;
 }
 
 /* =========================
@@ -861,6 +1494,249 @@ button.queue-item {
 }
 
 /* =========================
+   SEARCH / CARD LISTS (белые карточки 12 px, по 10 и «Подгрузить ещё»)
+========================= */
+
+.win-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 12px 12px 0;
+}
+
+.win-search .btn {
+  flex: none;
+}
+
+.search-field {
+  flex: 1;
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 36px;
+
+  padding: 0 12px;
+
+  border-radius: 12px;
+
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.search-field:focus-within {
+  box-shadow: 0 0 0 2px var(--brand);
+}
+
+.search-icon {
+  flex: none;
+
+  width: 16px;
+  height: 16px;
+}
+
+.search-field input {
+  flex: 1;
+  min-width: 0;
+
+  border: none;
+  outline: none;
+
+  background: transparent;
+  color: var(--text);
+
+  font-size: 14px;
+}
+
+.search-field input::placeholder {
+  color: var(--muted);
+}
+
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  padding: 12px;
+}
+
+.card-list .queue-item {
+  overflow: hidden;
+
+  border-bottom: none;
+  border-radius: 12px;
+
+  background: var(--surface);
+
+  box-shadow: 0 1px 2px rgba(13, 35, 58, 0.06);
+
+  transition: box-shadow 0.12s;
+}
+
+.card-list .queue-item:hover {
+  background: var(--surface);
+
+  box-shadow: 0 4px 12px rgba(13, 35, 58, 0.12);
+}
+
+.card-list .queue-item.active {
+  box-shadow: 0 0 0 2px var(--brand);
+}
+
+.list-more {
+  align-self: center;
+
+  padding: 8px 18px;
+
+  border: 2px solid var(--brand);
+  border-radius: 12px;
+
+  background: transparent;
+  color: var(--brand);
+
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.list-more:hover:not(:disabled) {
+  background: var(--grad);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.list-more:disabled {
+  opacity: 0.6;
+
+  cursor: default;
+}
+
+.list-end {
+  padding: 4px 0 8px;
+
+  text-align: center;
+
+  font-size: 12px;
+
+  color: var(--muted);
+}
+
+.link-btn {
+  padding: 0;
+
+  border: none;
+  background: none;
+  color: var(--brand);
+
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  cursor: pointer;
+}
+
+.queue-obj.link-btn {
+  color: var(--text);
+
+  text-decoration-color: var(--cell-line);
+}
+
+.queue-obj.link-btn:hover {
+  color: var(--brand);
+}
+
+/* Статус объекта: норма / наблюдение / тревога / офлайн — общий цвет для
+   бейджей, легенды и участков на карте. */
+.st-normal {
+  --st: var(--green);
+  --st-dim: var(--green-dim);
+}
+
+.st-watch {
+  --st: var(--amber);
+  --st-dim: var(--amber-dim);
+}
+
+.st-alarm {
+  --st: var(--red);
+  --st-dim: var(--red-dim);
+}
+
+.st-offline {
+  --st: var(--muted);
+  --st-dim: rgba(135, 135, 137, 0.14);
+}
+
+.badge.st-normal,
+.badge.st-watch,
+.badge.st-alarm,
+.badge.st-offline {
+  background: var(--st-dim);
+  color: var(--st);
+}
+
+/* =========================
+   FORM CARD («Создать заявку»)
+========================= */
+
+.form-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  margin: 12px;
+  padding: 16px;
+
+  border-radius: 12px;
+
+  background: var(--surface);
+}
+
+.form-card label,
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  font-size: 12px;
+
+  color: var(--text-dim);
+}
+
+.form-card input,
+.form-card select,
+.form-card textarea {
+  width: 100%;
+
+  padding: 9px 11px;
+
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+
+  background: var(--bg);
+  color: var(--text);
+
+  font-size: 14px;
+
+  outline: none;
+}
+
+.form-card textarea {
+  resize: vertical;
+}
+
+.form-card input:focus,
+.form-card select:focus,
+.form-card textarea:focus {
+  border-color: var(--brand);
+}
+
+/* =========================
    BUTTONS
 ========================= */
 
@@ -887,10 +1763,22 @@ button.queue-item {
 }
 
 .btn.primary {
-  background: var(--amber);
-  border-color: var(--amber);
+  background: var(--grad);
+  border-color: transparent;
 
-  color: #1a130a;
+  color: #ffffff;
+}
+
+.btn.primary:hover {
+  background: var(--grad);
+
+  filter: brightness(1.12);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+
+  cursor: default;
 }
 
 /* =========================
@@ -1210,7 +2098,7 @@ button.queue-item {
 }
 
 /* =========================
-   LOGIN
+   LOGIN (прототип Flow 1: логотип, «Авторизация», логин, пароль, «Вход»)
 ========================= */
 
 .login-page {
@@ -1218,60 +2106,53 @@ button.queue-item {
   height: 100%;
 
   display: flex;
-
   align-items: center;
   justify-content: center;
 
-  background:
-    linear-gradient(
-      var(--surface) 1px,
-      transparent 1px
-    )
-      0 0 / 26px 26px,
-    linear-gradient(
-      90deg,
-      var(--surface) 1px,
-      transparent 1px
-    )
-      0 0 / 26px 26px,
-    var(--bg);
+  padding: 16px;
+
+  overflow-y: auto;
+
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--canvas-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--canvas-line) 1px, transparent 1px);
+  background-size: 48px 48px;
 }
 
 .login-card {
-  width: 360px;
+  width: 100%;
+  max-width: 360px;
 
-  padding: 32px;
+  padding: 32px 28px 24px;
+
+  border-radius: 20px;
 
   background: var(--surface);
 
-  border: 1px solid
-    var(--border-strong);
-
-  border-radius: 10px;
-
-  box-shadow:
-    0 16px 40px
-    rgba(15, 23, 32, 0.12);
+  box-shadow: 0 16px 40px rgba(13, 35, 58, 0.14);
 }
 
-.login-brand {
-  display: flex;
-  align-items: center;
+.login-logo {
+  display: block;
 
-  gap: 10px;
+  width: 82px;
+  height: 40px;
 
-  font-size: 18px;
-  font-weight: 700;
+  margin: 0 auto 20px;
 
-  margin-bottom: 6px;
+  color: var(--brand-deep);
 }
 
-.login-subtitle {
-  font-size: 12px;
+.login-title {
+  margin: 0 0 24px;
 
-  color: var(--text-dim);
+  text-align: center;
 
-  margin-bottom: 26px;
+  font-size: 22px;
+  font-weight: 600;
+
+  color: var(--text);
 }
 
 .login-form {
@@ -1287,9 +2168,10 @@ button.queue-item {
 
   gap: 6px;
 
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 500;
 
-  color: var(--text-dim);
+  color: var(--text);
 }
 
 .login-form input,
@@ -1297,16 +2179,15 @@ button.queue-item {
 .login-form textarea {
   width: 100%;
 
-  padding: 10px 11px;
+  padding: 11px 14px;
 
-  border-radius: 7px;
-
-  border: 1px solid
-    var(--border-strong);
+  border-radius: 12px;
+  border: 1px solid transparent;
 
   background: var(--bg);
-
   color: var(--text);
+
+  font-size: 15px;
 
   outline: none;
 }
@@ -1318,26 +2199,32 @@ button.queue-item {
 .login-form input:focus,
 .login-form select:focus,
 .login-form textarea:focus {
-  border-color: var(--cyan);
+  border-color: var(--brand);
 }
 
 .login-button {
   width: 100%;
   flex: none;
 
-  margin-top: 4px;
+  height: 44px;
+
+  margin-top: 8px;
+
+  border-radius: 12px;
+
+  font-size: 15px;
 }
 
 .login-error {
   padding: 9px 11px;
 
-  border-radius: 7px;
+  border-radius: 10px;
 
   background: var(--red-dim);
 
   color: var(--red);
 
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .login-environment {
@@ -1352,6 +2239,241 @@ button.queue-item {
   font-size: 10px;
 
   color: var(--text-faint);
+}
+
+/* =========================
+   MAP (схема района в метрах, SVG)
+========================= */
+
+.map {
+  height: 100%;
+  min-height: 260px;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.map-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  padding: 10px 12px;
+
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.map-crumbs {
+  min-width: 0;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-back {
+  padding: 0;
+
+  border: none;
+  background: none;
+  color: var(--brand);
+
+  font: inherit;
+
+  cursor: pointer;
+}
+
+.map-back:hover {
+  text-decoration: underline;
+}
+
+.map-fit {
+  flex: none;
+
+  padding: 5px 10px;
+
+  border: 1px solid var(--cell-line);
+  border-radius: 10px;
+
+  background: var(--surface);
+  color: var(--text);
+
+  font-size: 12px;
+
+  cursor: pointer;
+}
+
+.map-fit:hover:not(:disabled) {
+  border-color: var(--brand);
+}
+
+.map-stage {
+  position: relative;
+
+  flex: 1;
+  min-height: 0;
+
+  margin: 0 12px;
+
+  border-radius: 12px;
+
+  background: var(--surface);
+
+  overflow: hidden;
+}
+
+.map-note {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+
+  z-index: 1;
+
+  margin: 0;
+
+  font-size: 12px;
+
+  color: var(--muted);
+}
+
+.map-svg {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  cursor: grab;
+  touch-action: none;
+}
+
+.map-svg:active {
+  cursor: grabbing;
+}
+
+.map-feature path {
+  fill: none;
+  stroke: var(--st, var(--brand));
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-area path {
+  fill: var(--brand-dim);
+  stroke: var(--cell-line);
+  stroke-width: 1;
+  stroke-dasharray: 6 4;
+}
+
+.map-branch path {
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+
+  opacity: 0.7;
+}
+
+.map-object path {
+  stroke-width: 5;
+
+  opacity: 0.9;
+}
+
+circle.map-feature {
+  fill: var(--st, var(--brand));
+  stroke: #ffffff;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+circle.map-picket {
+  fill: var(--muted);
+
+  opacity: 0.6;
+}
+
+.map-feature path.map-hit {
+  stroke: transparent;
+  stroke-width: 14;
+}
+
+.map-clickable {
+  cursor: pointer;
+}
+
+.map-clickable:hover path:not(.map-hit) {
+  stroke-width: 4;
+}
+
+.map-selected path:not(.map-hit) {
+  stroke-width: 5;
+
+  filter: drop-shadow(0 0 3px rgba(23, 82, 137, 0.6));
+}
+
+circle.map-selected {
+  stroke: var(--brand-deep);
+  stroke-width: 3;
+}
+
+.map-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+
+  padding: 10px 12px;
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  margin: 0;
+  padding: 0;
+
+  list-style: none;
+
+  font-size: 12px;
+
+  color: var(--text-dim);
+}
+
+.map-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.map-dot {
+  width: 10px;
+  height: 10px;
+
+  border-radius: 50%;
+
+  background: var(--st);
+}
+
+.map-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-selection-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.map-selection .btn {
+  flex: none;
+
+  padding: 6px 12px;
 }
 
 /* =========================

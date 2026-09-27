@@ -1,19 +1,13 @@
 import { ChangeEvent, FormEvent, useState } from 'react';
 
 import { usePermission } from '../../core/permissions/permissionService';
-import { MonitoredObject, ObjectStatus } from '../../entities/object/types';
+import { MonitoredObject } from '../../entities/object/types';
 import Button from '../../shared/ui/Button';
 import EmptyState from '../../shared/ui/EmptyState';
 import { useCreateObject } from './hooks/useCreateObject';
 import { useObjects } from './hooks/useObjects';
 import ObjectEditForm from './ObjectEditForm';
-
-const statusLabels: Record<ObjectStatus, string> = {
-  normal: 'норма',
-  watch: 'наблюдение',
-  alarm: 'тревога',
-  offline: 'офлайн',
-};
+import { objectStatusLabels } from './objectLabels';
 
 const emptyForm = {
   id: '',
@@ -71,7 +65,7 @@ export default function ObjectsPanel() {
           <div>
             <div>{object.name}</div>
             <div className="d">
-              #{object.id} · {object.kind} · {statusLabels[object.status] ?? object.status}
+              #{object.id} · {object.kind} · {objectStatusLabels[object.status] ?? object.status}
             </div>
           </div>
 

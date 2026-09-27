@@ -1,6 +1,6 @@
 import { GRID_STATE_VERSION, GridState } from './gridTypes';
 
-const STORAGE_KEY = 'kontur_grid_v1';
+const STORAGE_KEY = 'kontur_grid_v2';
 
 // Узкая граница ввода-вывода — сейчас только localStorage, но вызывающий
 // код (gridStore) обращается только к load()/save(), поэтому переезд на

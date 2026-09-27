@@ -1,24 +1,47 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+import { predictionRepository } from '../../entities/prediction/predictionRepository';
+import { PredictionListItem, PredictionStatus } from '../../entities/prediction/types';
+import { usePagedList } from '../../shared/hooks/usePagedList';
 import Badge from '../../shared/ui/Badge';
 import EmptyState from '../../shared/ui/EmptyState';
+import ListFooter from '../../shared/ui/ListFooter';
+import SearchField, { matchesSearch } from '../../shared/ui/SearchField';
 import { useObjects } from '../objects/hooks/useObjects';
-import { usePredictions } from './hooks/usePredictions';
 import PredictionFilters from './PredictionFilters';
 import { formatProbability, predictionTypeLabels, predictionStatusLabels, probabilityTone } from './predictionLabels';
 
+// «Журнал прогнозов»: новые сверху (BFF сортирует по HourEnd), по 10 штук.
 export default function PredictionQueueWindow() {
   const location = useLocation();
   const { objects } = useObjects();
-  const { predictions, loading, error, status, setStatus, objectId, setObjectId } = usePredictions();
+  const [status, setStatus] = useState<PredictionStatus | 'all'>('all');
+  const [objectId, setObjectId] = useState<number | undefined>(undefined);
+  const [search, setSearch] = useState('');
+
+  const list = usePagedList<PredictionListItem>(
+    `${status}:${objectId ?? ''}`,
+    query =>
+      predictionRepository.getList({ ...query, status: status === 'all' ? undefined : status, objectId }),
+    'Не удалось загрузить прогнозы.'
+  );
 
   function objectName(id: number): string {
     const object = objects.find(item => item.id === id);
     return object ? object.name : `#${id}`;
   }
 
+  const shown = list.items.filter(prediction =>
+    matchesSearch(search, objectName(prediction.objectId), prediction.topic, predictionTypeLabels[prediction.type])
+  );
+
   return (
     <>
+      <div className="win-search">
+        <SearchField value={search} onChange={setSearch} />
+      </div>
+
       <PredictionFilters
         status={status}
         onStatusChange={setStatus}
@@ -26,12 +49,15 @@ export default function PredictionQueueWindow() {
         onObjectChange={setObjectId}
       />
 
-      <div>
-        {loading && <EmptyState>Загрузка…</EmptyState>}
-        {error && <div className="status-note rej">{error}</div>}
-        {!loading && !error && predictions.length === 0 && <EmptyState>Прогнозов пока нет</EmptyState>}
+      <div className="card-list">
+        {list.loading && list.items.length === 0 && <EmptyState>Загрузка…</EmptyState>}
+        {list.error && <div className="status-note rej">{list.error}</div>}
+        {!list.loading && !list.error && list.items.length === 0 && <EmptyState>Прогнозов пока нет</EmptyState>}
+        {search && list.items.length > 0 && shown.length === 0 && (
+          <EmptyState>Среди загруженных прогнозов совпадений нет</EmptyState>
+        )}
 
-        {predictions.map(prediction => {
+        {shown.map(prediction => {
           const active = location.pathname === `/predictions/${prediction.id}`;
           const tone = probabilityTone(prediction.probability);
 
@@ -59,6 +85,8 @@ export default function PredictionQueueWindow() {
             </Link>
           );
         })}
+
+        <ListFooter count={list.items.length} hasMore={list.hasMore} loading={list.loading} onMore={list.loadMore} />
       </div>
     </>
   );

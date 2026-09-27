@@ -14,6 +14,17 @@ export interface MonitoredObject {
   statusAt: string;
 }
 
+// Слой карты (/objects/{id}/layers): geoJson — строка с FeatureCollection в
+// условных метрах схемы (tf.crs = 'schematic-m'), не в широте/долготе.
+export interface MapLayer {
+  id: string;
+  level: number;
+  objectId: number | null;
+  kind: string;
+  geoJson: string;
+  updatedAt: string;
+}
+
 export interface CreateObjectRequest {
   id: number;
   level: number;

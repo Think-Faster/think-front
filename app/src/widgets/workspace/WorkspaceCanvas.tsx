@@ -1,101 +1,72 @@
-import { CSSProperties } from 'react';
+import { useEffect } from 'react';
+import { useMatch } from 'react-router-dom';
 
 import { isWindowVisible, windowRegistry } from '../../core/registry/windowRegistry';
-import { ADD_TRACK_SIZE, DIVIDER_SIZE } from '../../core/workspace/gridConfig';
-import Window from '../../shared/ui/Window';
 import { usePermissionsStore } from '../../stores/permissions/permissionsStore';
-import { useGridStore } from '../../stores/workspace/gridStore';
-import GridColumnDivider from './GridColumnDivider';
-import GridRowDivider from './GridRowDivider';
+import { useLayoutStore } from '../../stores/workspace/layoutStore';
+import { openWindow } from '../../stores/workspace/workspaceCommands';
+import FreeCanvas from './FreeCanvas';
+import GridCanvas from './GridCanvas';
 
-// Реальный трек i живёт на линии 2i+1, разделитель между i и i+1 — на 2i+2
-// (1-based CSS grid line numbers, между каждой парой реальных треков —
-// трек-разделитель, см. core/workspace/gridConfig.ts DIVIDER_SIZE).
-function trackLine(index: number): number {
-  return index * 2 + 1;
+// Первый вход: открыть окна с defaultOpen, как только пришли права (до этого
+// видимость окон неизвестна). Дальше раскладку ведёт пользователь.
+function useSeedDefaultWindows() {
+  const permissions = usePermissionsStore(state => state.map);
+  const seeded = useLayoutStore(state => state.seeded);
+
+  useEffect(() => {
+    if (seeded || Object.keys(permissions).length === 0) {
+      return;
+    }
+    windowRegistry
+      .filter(definition => definition.defaultOpen && isWindowVisible(definition, permissions))
+      .forEach(definition => openWindow(definition.id));
+    useLayoutStore.getState().markSeeded();
+  }, [permissions, seeded]);
 }
 
+// Ссылка /predictions/:id или /tasks/:id открывает карточку, если её закрыли.
+function useRouteWindows() {
+  const predictionId = useMatch('/predictions/:id')?.params.id;
+  const taskId = useMatch('/tasks/:id')?.params.id;
+
+  useEffect(() => {
+    if (predictionId) {
+      openWindow('pred');
+    }
+  }, [predictionId]);
+
+  useEffect(() => {
+    if (taskId) {
+      openWindow('taskDetail');
+    }
+  }, [taskId]);
+}
+
+function DragGhost() {
+  const drag = useLayoutStore(state => state.drag);
+  if (!drag || !drag.showGhost) {
+    return null;
+  }
+  return (
+    <div className={`drag-ghost ${drag.overTrash ? 'to-trash' : ''}`} style={{ left: drag.x, top: drag.y }}>
+      {drag.title}
+    </div>
+  );
+}
+
+// Режим раскладки выбирает переключатель «Располагать окна внахлест?» в
+// сайдбаре: «Да» — свободный холст, «Нет» — сегментная сетка.
 export default function WorkspaceCanvas() {
-  const grid = useGridStore(state => state.grid);
-  const removeWindow = useGridStore(state => state.removeWindow);
-  const addColumn = useGridStore(state => state.addColumn);
-  const addRow = useGridStore(state => state.addRow);
-  const permissions = usePermissionsStore(state => state.map);
+  const overlap = useLayoutStore(state => state.overlap);
 
-  const { columns, rows, cells } = grid;
-
-  const columnTrackSpan = Math.max(1, columns.length * 2 - 1);
-  const rowTrackSpan = Math.max(1, rows.length * 2 - 1);
-
-  const templateColumns = columns.map(column => `${column.size}px`).join(` ${DIVIDER_SIZE}px `);
-  const templateRows = rows.map(row => `${row.size}px`).join(` ${DIVIDER_SIZE}px `);
-
-  const gridStyle: CSSProperties = {
-    gridTemplateColumns: `${templateColumns} ${ADD_TRACK_SIZE}px`.trim(),
-    gridTemplateRows: `${templateRows} ${ADD_TRACK_SIZE}px`.trim(),
-  };
+  useSeedDefaultWindows();
+  useRouteWindows();
 
   return (
-    <div className="grid-canvas" style={gridStyle}>
-      {cells
-        .filter(cell => cell.windowId)
-        .map(cell => {
-          const definition = windowRegistry.find(item => item.id === cell.windowId);
-          if (!definition || !isWindowVisible(definition, permissions)) {
-            return null;
-          }
-
-          const columnIndex = columns.findIndex(column => column.id === cell.columnId);
-          const rowIndex = rows.findIndex(row => row.id === cell.rowId);
-          const Content = definition.component;
-
-          return (
-            <div
-              key={definition.id}
-              style={{
-                gridColumn: `${trackLine(columnIndex)} / span 1`,
-                gridRow: `${trackLine(rowIndex)} / span 1`,
-                minWidth: 0,
-                minHeight: 0,
-              }}
-            >
-              <Window windowId={definition.id} title={definition.title} onClose={() => removeWindow(definition.id)}>
-                <Content />
-              </Window>
-            </div>
-          );
-        })}
-
-      {columns.slice(0, -1).map((column, index) => (
-        <GridColumnDivider
-          key={column.id}
-          columnId={column.id}
-          lineIndex={trackLine(index) + 1}
-          rowSpan={rowTrackSpan}
-        />
-      ))}
-
-      {rows.slice(0, -1).map((row, index) => (
-        <GridRowDivider key={row.id} rowId={row.id} lineIndex={trackLine(index) + 1} columnSpan={columnTrackSpan} />
-      ))}
-
-      <button
-        className="grid-add-col"
-        style={{ gridColumn: `${columnTrackSpan + 1} / span 1`, gridRow: `1 / span ${rowTrackSpan}` }}
-        onClick={() => addColumn()}
-        title="Добавить колонку"
-      >
-        +
-      </button>
-
-      <button
-        className="grid-add-row"
-        style={{ gridRow: `${rowTrackSpan + 1} / span 1`, gridColumn: `1 / span ${columnTrackSpan}` }}
-        onClick={() => addRow()}
-        title="Добавить строку"
-      >
-        +
-      </button>
-    </div>
+    <>
+      {overlap ? <FreeCanvas /> : <GridCanvas />}
+      <DragGhost />
+    </>
   );
 }

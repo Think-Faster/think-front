@@ -29,6 +29,7 @@ export const endpoints = {
     objects: {
       list: '/bff/objects',
       byId: (id: number) => `/bff/objects/${id}`,
+      layers: (id: number) => `/bff/objects/${id}/layers`,
     },
     sensors: {
       list: '/bff/sensors',
@@ -39,6 +40,9 @@ export const endpoints = {
       byId: (id: string) => `/bff/predictions/${id}`,
       decisions: (id: string) => `/bff/predictions/${id}/decisions`,
     },
+    // Тревоги по факту (FactAlert) — срабатывания по показаниям датчиков, а
+    // не прогноз модели; источник окна «Журнал данных».
+    factAlerts: '/bff/fact-alerts',
     tasks: {
       list: '/bff/tasks',
       byId: (id: string) => `/bff/tasks/${id}`,

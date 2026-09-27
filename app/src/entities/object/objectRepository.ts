@@ -1,18 +1,22 @@
 import { apiClient } from '../../core/api/client';
 import { endpoints } from '../../core/api/endpoints';
-import { PagedResult } from '../../core/api/types';
-import { CreateObjectRequest, MonitoredObject, UpdateObjectRequest } from './types';
+import { PagedResult, PageRequest } from '../../core/api/types';
+import { CreateObjectRequest, MapLayer, MonitoredObject, UpdateObjectRequest } from './types';
 
-// Пикеты (/objects/{id}/pickets) и слои карты (/objects/{id}/layers) сюда
-// намеренно не входят — это уже не CRUD-карточка объекта, а геометрия для
-// рендера карты/схемы (нужен MapLibre/Leaflet или свой SVG-парсер GeoJSON),
-// отдельная по объёму задача.
+// Пикеты (/objects/{id}/pickets) сюда не входят; слои карты читает окно
+// «Карта» (features/map) и рисует их своим SVG, без картографической
+// библиотеки — координаты схемы в метрах, не географические.
 export const objectRepository = {
-  async getList(params?: { search?: string }): Promise<PagedResult<MonitoredObject>> {
+  async getList(params?: { search?: string } & PageRequest): Promise<PagedResult<MonitoredObject>> {
     const { data } = await apiClient.get<PagedResult<MonitoredObject>>(endpoints.bff.objects.list, {
       params,
     });
 
+    return data;
+  },
+
+  async getLayers(id: number, level?: number): Promise<MapLayer[]> {
+    const { data } = await apiClient.get<MapLayer[]>(endpoints.bff.objects.layers(id), { params: { level } });
     return data;
   },
 
