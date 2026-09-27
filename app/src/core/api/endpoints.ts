@@ -79,5 +79,10 @@ export const endpoints = {
       list: '/bff/ignored-ranges',
       byId: (id: string) => `/bff/ignored-ranges/${id}`,
     },
+    // График плановых работ (ППР, ТО): окна, в которые модель глушит тревоги.
+    workSchedule: {
+      list: '/bff/work-schedule',
+      byId: (workId: number) => `/bff/work-schedule/${workId}`,
+    },
   },
 } as const;

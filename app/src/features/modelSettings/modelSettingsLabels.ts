@@ -1,5 +1,6 @@
 import { PredictionType } from '../../entities/prediction/types';
 import { IgnoredRangeScope } from '../../entities/ignoredRange/types';
+import { WorkSource } from '../../entities/workSchedule/types';
 import { predictionTypeLabels } from '../predictions/predictionLabels';
 
 export { predictionTypeLabels as coefficientTypeLabels };
@@ -17,3 +18,9 @@ export const ignoredRangeScopeLabels: Record<IgnoredRangeScope, string> = {
 export const ignoredRangeScopeOptions: { value: IgnoredRangeScope; label: string }[] = (
   Object.entries(ignoredRangeScopeLabels) as [IgnoredRangeScope, string][]
 ).map(([value, label]) => ({ value, label }));
+
+export const workSourceLabels: Record<WorkSource, string> = {
+  organizer: 'график организатора',
+  chiefDispatcher: 'главный диспетчер',
+  carriedOver: 'перенесена',
+};

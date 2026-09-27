@@ -5,14 +5,16 @@ import CoefficientsTab from './CoefficientsTab';
 import IgnoredRangesTab from './IgnoredRangesTab';
 import ModelVersionsTab from './ModelVersionsTab';
 import RetrainJobsTab from './RetrainJobsTab';
+import WorkScheduleTab from './WorkScheduleTab';
 
-type ModelSettingsTab = 'versions' | 'coefficients' | 'retrain' | 'ignored';
+type ModelSettingsTab = 'versions' | 'coefficients' | 'retrain' | 'ignored' | 'works';
 
 const tabOptions: { value: ModelSettingsTab; label: string }[] = [
   { value: 'versions', label: 'Версии' },
   { value: 'coefficients', label: 'Коэффициенты' },
   { value: 'retrain', label: 'Переобучение' },
   { value: 'ignored', label: 'Игнорируемые диапазоны' },
+  { value: 'works', label: 'График работ' },
 ];
 
 export default function ModelSettingsWindow() {
@@ -28,6 +30,7 @@ export default function ModelSettingsWindow() {
       {tab === 'coefficients' && <CoefficientsTab />}
       {tab === 'retrain' && <RetrainJobsTab />}
       {tab === 'ignored' && <IgnoredRangesTab />}
+      {tab === 'works' && <WorkScheduleTab />}
     </div>
   );
 }
