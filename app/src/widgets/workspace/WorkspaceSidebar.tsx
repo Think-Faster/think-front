@@ -205,6 +205,8 @@ export default function WorkspaceSidebar() {
   const hint = useLayoutStore(state => state.hint);
   const setHint = useLayoutStore(state => state.setHint);
   const permissions = usePermissionsStore(state => state.map);
+  const permissionsStatus = usePermissionsStore(state => state.status);
+  const reloadPermissions = usePermissionsStore(state => state.load);
   const openIds = useOpenWindowIds();
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -249,6 +251,27 @@ export default function WorkspaceSidebar() {
             <SectionButton key={definition.id} definition={definition} selected={isSelected(definition)} />
           ))}
         </nav>
+
+        {visible.length === 0 && permissionsStatus === 'loading' && (
+          <p className="sidebar-empty" role="status">
+            Загружаем разделы…
+          </p>
+        )}
+
+        {visible.length === 0 && permissionsStatus === 'ready' && (
+          <p className="sidebar-empty" role="status">
+            Нет доступных разделов: у учётной записи пока нет прав. Их выдаёт администратор.
+          </p>
+        )}
+
+        {visible.length === 0 && permissionsStatus === 'error' && (
+          <div className="sidebar-empty" role="alert">
+            <p>Не удалось загрузить права, поэтому разделы скрыты.</p>
+            <button className="sidebar-empty-retry" onClick={() => reloadPermissions()}>
+              Повторить
+            </button>
+          </div>
+        )}
 
         {more.length > 0 && (
           <div className="sidebar-more">
