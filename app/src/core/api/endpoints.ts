@@ -2,7 +2,7 @@ export const endpoints = {
   auth: {
     login: '/auth/login',
     me: '/auth/me',
-    register: '/auth/users/create',
+    register: '/auth/create',
     // Нет ручки логаута — выход обрабатывается на фронте, см. authStore.logout().
   },
 
