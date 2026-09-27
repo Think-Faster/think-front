@@ -9,7 +9,7 @@ import { SendEmailRequest, SendEmailResponse } from './types';
 // или залимиченные получатели всё равно дают 200 с отчётом).
 export const notificationRepository = {
   async sendEmail(request: SendEmailRequest): Promise<SendEmailResponse> {
-    const { data } = await apiClient.post<SendEmailResponse>(endpoints.notifications.sendEmail, request);
+    const { data } = await apiClient.post<SendEmailResponse>(endpoints.bff.notifications.sendEmail, request);
     return data;
   },
 };
