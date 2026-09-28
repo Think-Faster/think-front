@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useState } from 'react';
+import { ChangeEvent, FormEvent, Fragment, useState } from 'react';
 
 import { usePermission } from '../../core/permissions/permissionService';
 import Badge from '../../shared/ui/Badge';
@@ -41,22 +41,36 @@ export default function GroupsPanel() {
       {error && <div className="status-note rej">{error}</div>}
       {!loading && !error && groups.length === 0 && <EmptyState>Групп пока нет</EmptyState>}
 
-      {groups.map(group => (
-        <button
-          key={group.id}
-          className={`queue-item ${selectedGroupId === group.id ? 'active' : ''}`}
-          onClick={() => setSelectedGroupId(current => (current === group.id ? null : group.id))}
-        >
-          <div className="queue-top">
-            <span className="queue-obj">{group.name}</span>
-            {group.isSystem && <Badge tone="low">системная</Badge>}
-          </div>
+      {/* Участники раскрываются под своей группой, а не в конце списка. */}
+      {groups.map(group => {
+        const expanded = selectedGroupId === group.id;
 
-          <div className="queue-meta mono">{group.code}</div>
-        </button>
-      ))}
+        return (
+          <Fragment key={group.id}>
+            <button
+              className={`queue-item ${expanded ? 'active' : ''}`}
+              aria-expanded={expanded}
+              onClick={() => setSelectedGroupId(current => (current === group.id ? null : group.id))}
+            >
+              <div className="queue-top">
+                <span className="queue-obj">{group.name}</span>
+                <span className="row-toggle-end">
+                  {group.isSystem && <Badge tone="low">системная</Badge>}
+                  <span className="row-chevron" aria-hidden="true">{expanded ? '▴' : '▾'}</span>
+                </span>
+              </div>
 
-      {selectedGroupId && <GroupMembersEditor groupId={selectedGroupId} />}
+              <div className="queue-meta mono">{group.code}</div>
+            </button>
+
+            {expanded && (
+              <div className="row-expand">
+                <GroupMembersEditor groupId={group.id} />
+              </div>
+            )}
+          </Fragment>
+        );
+      })}
 
       {canCreate && (
         <>

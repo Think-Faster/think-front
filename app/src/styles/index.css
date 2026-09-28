@@ -1762,6 +1762,30 @@ button.queue-item {
   font: inherit;
 }
 
+/* Строка списка, раскрытая на месте (участники группы, правка пользователя):
+   содержимое — сразу под строкой, со сдвигом, до следующей строки. */
+.row-expand {
+  padding: 4px 0 12px 13px;
+
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+
+  background: var(--surface);
+}
+
+.row-toggle-end {
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+}
+
+.row-chevron {
+  color: var(--text-faint);
+
+  font-size: 11px;
+}
+
 .queue-top {
   display: flex;
   justify-content: space-between;
