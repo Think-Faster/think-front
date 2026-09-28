@@ -79,9 +79,11 @@ export function taskResultLabel(code: string): string {
   return taskResultOptions.find(option => option.value === code)?.label ?? code;
 }
 
-// BFF пишет статус назначения строкой; сейчас это только "assigned".
+// BFF пишет статус назначения строкой: действующее — "assigned", после
+// переназначения прежнее становится "replaced".
 const assignmentStatusLabels: Record<string, string> = {
   assigned: 'назначен',
+  replaced: 'заменён',
 };
 
 export function assignmentStatusLabel(status: string): string {

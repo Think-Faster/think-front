@@ -30,7 +30,7 @@ export interface PredictionFactor {
 
 export interface PredictionEvidence {
   sensorId: number;
-  picketId: string | null;
+  picketId: number | null;
   ts: string;
   value: number | null;
 }
@@ -58,16 +58,18 @@ export interface PredictionDecision {
   reasonCode: string | null;
   comment: string | null;
   taskId: string | null;
+  mutedUntil: string | null;
   decidedAt: string;
 }
 
-// reasonCode обязателен на бэкенде, когда action === 'reject' (доп. проверка
-// в UI не дублируем — бэкенд сам ответит validation_failed, если забыли).
-// Значения кодов нигде не перечислены (в отличие от PredictionType/Status) —
-// поэтому в форме это обычное текстовое поле, а не select с угаданными
-// вариантами.
+// reasonCode обязателен при reject (коды — rejectReasonOptions, «other» —
+// только с комментарием). take без taskId заводит заявку на BFF и отдаёт её id
+// в PredictionDecision.taskId; с taskId — прикрепляет к открытой заявке того же
+// объекта. until обязателен при mute (не раньше чем через час).
 export interface CreatePredictionDecisionRequest {
   action: DecisionAction;
   reasonCode?: string | null;
   comment?: string | null;
+  taskId?: string | null;
+  until?: string | null;
 }

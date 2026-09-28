@@ -4,9 +4,6 @@ import { emitDataEvent } from '../../../core/events/dataEvents';
 import { formatBffErrorMessage } from '../../../core/errors/bffError';
 import { predictionRepository } from '../../../entities/prediction/predictionRepository';
 import { CreatePredictionDecisionRequest, Prediction } from '../../../entities/prediction/types';
-import { taskRepository } from '../../../entities/task/taskRepository';
-import { newTaskNumber } from '../../tasks/taskLabels';
-import { predictionTypeLabels } from '../predictionLabels';
 
 export function usePrediction(id: string | undefined) {
   const [prediction, setPrediction] = useState<Prediction | undefined>();
@@ -57,46 +54,24 @@ export function usePrediction(id: string | undefined) {
     }
   }
 
-  // «Взять в работу» — прогноз уходит в заявку (ТЗ: карточка прогноза → task.created).
-  // BFF на take только меняет статус, поэтому заявку с прогнозом-основанием
-  // заводим здесь же. Возвращает id заявки или null.
-  async function takeToTask(): Promise<string | null> {
-    if (!id || !prediction) {
+  // «Взять в работу» — BFF в том же запросе заводит заявку с прогнозом-основанием
+  // (или прикрепляет к taskId) и отдаёт её id. Возвращает id заявки или null.
+  async function takeToTask(taskId?: string): Promise<string | null> {
+    if (!id) {
       return null;
     }
 
     setDeciding(true);
     setDecisionError('');
 
-    let taken = false;
     try {
-      await predictionRepository.decide(id, { action: 'take' });
-      taken = true;
-
-      const task = await taskRepository.create({
-        number: newTaskNumber(),
-        sourceType: 'prediction',
-        objectId: prediction.objectId,
-        topic: prediction.topic,
-        description: prediction.recommendation ?? prediction.description,
-        faultClassification: prediction.classification ?? predictionTypeLabels[prediction.type],
-        priority: 3,
-      });
-      await taskRepository.addPrediction(task.id, { predictionId: id, isPrimary: true });
-
+      const decision = await predictionRepository.decide(id, { action: 'take', taskId: taskId ?? null });
+      load();
       emitDataEvent('task.created');
       emitDataEvent('prediction.updated');
-      return task.id;
+      return decision.taskId;
     } catch (err) {
-      setDecisionError(
-        taken
-          ? `Прогноз взят, но заявку создать не удалось — создайте её вручную. ${formatBffErrorMessage(err, '')}`.trim()
-          : formatBffErrorMessage(err, 'Не удалось взять прогноз в работу.')
-      );
-      if (taken) {
-        load();
-        emitDataEvent('prediction.updated');
-      }
+      setDecisionError(formatBffErrorMessage(err, 'Не удалось взять прогноз в работу.'));
       return null;
     } finally {
       setDeciding(false);
