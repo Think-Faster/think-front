@@ -159,14 +159,13 @@ TypeScript не подключался вообще. Все три файла/п
   следующей (`.field-label` + `.user-menu-id-value`, с `word-break:
   break-all`), а не в одну строку с лейблом — длинный uuid иначе вылезал за
   границы попапа (`width: 220px`).
-- **Logout без бэкенд-ручки.** На бэкенде нет `/auth/logout` — `authStore.logout()`
-  чистит куки на фронте (`core/auth/clearAllCookies.ts`) и уходит на `/login`,
-  без HTTP-запроса. Важная оговорка прямо в этом файле: если кука с токеном
-  `HttpOnly` (а по `docs/FRONTEND_INTEGRATION.md` §2 это так) — JS её в
-  принципе не видит и не может стереть; такой logout чистит то, что вообще
-  доступно фронту, и сбрасывает состояние приложения, но сама HttpOnly-кука
-  протухнет только по её собственному сроку жизни (или когда на бэкенде
-  появится настоящая ручка логаута, отдающая `Set-Cookie` с истёкшим сроком).
+- **Logout — через tf-auth.** Куки сессии (`access_token`, `refresh_token`)
+  `HttpOnly`: JS их не видит и стереть не может, а оставшаяся refresh-кука
+  подняла бы сессию снова на следующем `/auth/me`. Поэтому `authStore.logout()`
+  сразу сбрасывает состояние и зовёт `POST /auth/logout` (`authApi.logout()`) —
+  tf-auth отвечает `Set-Cookie` с истёкшим сроком; затем
+  `core/auth/clearAllCookies.ts` чистит читаемые куки, и уходим на `/login`.
+  Ручка не ответила — на `/login` уходим всё равно.
 
 ### Учётка (auth) vs профиль (BFF) — и почему инициалы аватара best-effort
 
@@ -894,7 +893,7 @@ src/
 │   │   └── types.ts            # PagedResult / PageRequest — страницы списков BFF
 │   ├── auth/
 │   │   ├── types.ts
-│   │   ├── authApi.ts           # HTTP-обёртка над /auth/* (login/register/me — logout нет)
+│   │   ├── authApi.ts           # HTTP-обёртка над /auth/* (login/register/me/refresh/logout)
 │   │   ├── authEvents.ts        # pub/sub для "случился 401"
 │   │   └── clearAllCookies.ts    # используется в authStore.logout()
 │   ├── events/dataEvents.ts     # «данные изменились» между окнами (task.created, prediction.updated)
@@ -1361,11 +1360,14 @@ export const useNotificationsStore = create<NotificationsState>(set => ({
     `permission_denied`), и это различие теряется, если смотреть только на
     HTTP-код. Пример использования — `features/users/hooks/useUsers.ts`.
 - 401 не обрабатывается в компонентах вообще — это происходит централизованно
-  в `core/api/client.ts` → `authEvents` → `authStore.handleUnauthorized()` →
+  в `core/api/client.ts`. Access-токен живёт 10 минут, сессия (refresh-токен) —
+  сутки; BFF продлевает токен сам, а воронка — нет. Поэтому на первый 401
+  клиент один раз продлевает сессию (`POST /auth/refresh`, одновременные 401
+  ждут один общий запрос) и повторяет исходный запрос. Не вышло (или 401 пришёл
+  на сам `/auth/*`) → `authEvents` → `authStore.handleUnauthorized()` →
   редирект на `/login` через `core/routing/navigation.ts`. Это верно для всех
-  трёх auth-кодов 401 (`unauthenticated`/`invalid_token`/`token_refresh_failed`)
-  — все три требуют одного и того же действия (на логин), поэтому клиент
-  реагирует на сам HTTP-статус, а не парсит `code`.
+  трёх auth-кодов 401 (`unauthenticated`/`invalid_token`/`token_refresh_failed`),
+  поэтому клиент реагирует на сам HTTP-статус, а не парсит `code`.
 - Проверка прав — через `core/permissions/permissionService.ts`:
   - `usePermission(resource, action)` — хук, для использования внутри
     компонентов (подписывается на `permissionsStore`, перерисовывает UI, когда

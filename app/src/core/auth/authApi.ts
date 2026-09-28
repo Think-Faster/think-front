@@ -26,6 +26,8 @@ export const authApi = {
     return response.data;
   },
 
-  // Нет ручки логаута на бэкенде — выход делается на фронте: см.
-  // stores/auth/authStore.ts (clearAllCookies + сброс состояния).
+  // Куки сессии HttpOnly — стереть их может только tf-auth.
+  async logout(): Promise<void> {
+    await apiClient.post(endpoints.auth.logout);
+  },
 };
