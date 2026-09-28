@@ -15,6 +15,11 @@ export const objectRepository = {
     return data;
   },
 
+  async get(id: number): Promise<MonitoredObject> {
+    const { data } = await apiClient.get<MonitoredObject>(endpoints.bff.objects.byId(id));
+    return data;
+  },
+
   async getLayers(id: number, level?: number): Promise<MapLayer[]> {
     const { data } = await apiClient.get<MapLayer[]>(endpoints.bff.objects.layers(id), { params: { level } });
     return data;

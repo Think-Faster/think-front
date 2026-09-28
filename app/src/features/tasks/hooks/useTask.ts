@@ -201,6 +201,7 @@ export function useTask(id: string | undefined) {
     error,
     acting,
     actionError,
+    reload: load,
     take,
     addPrediction,
     removePrediction,
