@@ -268,6 +268,7 @@ export default function WorkspaceSidebar() {
   const reloadPermissions = usePermissionsStore(state => state.load);
   const openIds = useOpenWindowIds();
   const [moreOpen, setMoreOpen] = useState(false);
+  const draggingWindow = useLayoutStore(state => state.drag?.source === 'window');
 
   useEffect(() => {
     if (!hint) {
@@ -296,7 +297,7 @@ export default function WorkspaceSidebar() {
   }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${draggingWindow ? 'window-drag' : ''}`.trim()}>
       <div className="sidebar-top">
         <LogoMark className="sidebar-logo" />
         <ThemeToggle />

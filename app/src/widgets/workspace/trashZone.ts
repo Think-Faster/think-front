@@ -21,11 +21,15 @@ export function registerCanvas(element: HTMLElement | null) {
   canvasElement = element;
 }
 
+export function trashRect(): DOMRect | null {
+  return trashElement?.getBoundingClientRect() ?? null;
+}
+
 export function isOverTrash(clientX: number, clientY: number): boolean {
-  if (!trashElement) {
+  const rect = trashRect();
+  if (!rect) {
     return false;
   }
-  const rect = trashElement.getBoundingClientRect();
   return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
 }
 
