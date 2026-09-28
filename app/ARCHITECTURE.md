@@ -737,6 +737,42 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
 
 Правила и проверка — [SPEC.md](SPEC.md) §5.
 
+## Раздел инженера (`/engineer`)
+
+Второй раздел верхнего уровня после workspace — мобильный экран инженера
+по макетам «Инженер» (список, заявка, отчёт, запрос). Это отдельные
+страницы, а не окна: на телефоне сетка окон не нужна, а назад и вперёд
+ходят через историю браузера.
+
+- **`core/registry/sectionRegistry.ts`.** Раздел = `{ id, title, path,
+  mobile?, isVisible(permissions) }`. `workspace` виден, если доступно хоть
+  одно окно из `windowRegistry`; `engineer` — при `tasks:read`, он
+  `mobile`. Меню профиля (`UserMenu`) показывает ссылки на остальные
+  доступные разделы.
+- **`SectionRoute`.** Пока права грузятся, рисует раздел как есть. Раздел
+  недоступен — ведёт в первый доступный. Первый вход в приложение на узком
+  экране (`max-width: 767px`) — в mobile-раздел; дальше выбор за
+  пользователем, повторно не перекидывает.
+- **Свои заявки — `GET /bff/tasks?assignedToMe=true`.** BFF берёт id
+  инженера из токена и отбирает заявки с активным (`assigned`) назначением
+  на него — фронту не нужно знать свой `userId` в BFF.
+- **Карточка.** Адрес и коллектор — у объекта уровня 2 (участок заявки
+  поднимается по `parentId`); карта, пикеты и названия датчиков — из тех же
+  слоёв `/objects/{id}/layers`, что у окна «Карта» (`buildCollector`), но
+  без выбора и перетаскивания: жест на телефоне прокручивает страницу,
+  масштаб кнопками. Без `objects:read` — «Объект N», «Канал N» и без карты.
+  ФИО диспетчера — из `GET /tasks/assignees?role=dispatchers`, `users:read`
+  инженеру не нужен.
+- **«Приступить».** На макете кнопки нет, но без неё заявка не попадёт в
+  «В работе» (`start`: `assigned`/`returnedToWork` → `engineerWorking`).
+- **Отчёт.** В BFF `resultCode` обязателен, поэтому к полю «Что сделано»
+  из макета добавлен выбор результата из `taskResultOptions`. Отчёт
+  переводит заявку в `completed`.
+- **Запрос к диспетчеру** — `returns` с `targetType: dispatcher` и
+  `targetUserId` диспетчера заявки; диспетчера нет — в общую очередь.
+- **Показания** — `/funnel/log` по объекту заявки за сутки с отбором по
+  каналу на фронте: отбора по датчику у воронки нет.
+
 ## Email-рассылка (`POST /bff/notifications/email`)
 
 Кнопка-конверт рядом с аватаром пользователя внизу шторки
@@ -844,9 +880,11 @@ src/
 │   ├── AppRoutes.tsx          # список маршрутов
 │   ├── NavigationBridge.tsx    # регистрирует useNavigate() для core/routing
 │   ├── layouts/
-│   │   └── WorkspaceLayout.tsx # холст на весь экран + шторка сайдбара, шапки нет
+│   │   ├── WorkspaceLayout.tsx # холст на весь экран + шторка сайдбара, шапки нет
+│   │   └── EngineerLayout.tsx  # раздел инженера: белая шапка + лента страниц
 │   └── routing/
-│       └── ProtectedRoute.tsx
+│       ├── ProtectedRoute.tsx
+│       └── SectionRoute.tsx    # раздел недоступен — в первый доступный; телефон — в mobile-раздел
 │
 ├── core/                    # инфраструктура, не знает о конкретных сущностях
 │   ├── config/config.ts       # ENV → AppConfig
@@ -868,6 +906,7 @@ src/
 │   │   ├── permissionService.ts   # can()/usePermission()(resource, action)
 │   │   └── permissionsApi.ts      # GET /bff/permissions/me
 │   ├── registry/windowRegistry.ts        # id → { component, section, defaultOpen, route, multiple, requiredPermission }
+│   ├── registry/sectionRegistry.ts       # разделы верхнего уровня: workspace, engineer
 │   └── workspace/
 │       ├── gridTypes.ts                   # GridTrack/GridCell/GridState
 │       ├── gridConfig.ts                  # SEGMENT_OPTIONS, размеры свободных окон и другие константы
@@ -1014,6 +1053,14 @@ src/
 │   │   ├── TaskDetailWindow.tsx          # окно workspace: карточка, :id через useWindowEntityId
 │   │   ├── taskLabels.ts
 │   │   └── hooks/{useTasks,useCreateTask,useTask}.ts
+│   ├── engineer/                        # раздел /engineer — страницы, не окна
+│   │   ├── EngineerTaskList.tsx          # «Мои заявки» (assignedToMe=true)
+│   │   ├── EngineerTaskCard.tsx          # карточка: карта, датчики по пикетам, диспетчер, действия
+│   │   ├── EngineerTaskForms.tsx         # «Отчет» и «Запрос к диспетчеру»
+│   │   ├── EngineerSensorReadings.tsx    # показания датчика за сутки из воронки
+│   │   ├── TaskMap.tsx                   # компактная карта участка на слоях features/map
+│   │   ├── engineerLabels.ts
+│   │   └── hooks/{useMyTasks,useTaskPlaces,useDispatcher,useCollectorModel,useSensorReadings}.ts
 │   ├── incidents/
 │   │   ├── IncidentsWindow.tsx          # окно workspace: список + подтверждение
 │   │   ├── incidentLabels.ts             # реэкспорт predictionTypeLabels — тот же PredictionType
@@ -1057,7 +1104,8 @@ src/
 │
 └── pages/                   # тонкие точки для роутов
     ├── LoginPage.tsx
-    └── WorkspacePage.tsx
+    ├── WorkspacePage.tsx
+    └── EngineerPage.tsx       # view → страница раздела инженера
 ```
 
 Правило простое: если код знает про HTTP/axios — он в `core/api` или
@@ -1396,10 +1444,6 @@ export const config = {
   единому паттерну, а не generic-рендер по схеме поля. Schema-driven
   рендеринг стоит заводить, когда однотипных разделов станет действительно
   много и копипаста между ними станет заметна, а не заранее.
-- **Нет `SectionRegistry`.** Пока в приложении один "раздел" — workspace.
-  Когда появится второй маршрут верхнего уровня со своим набором прав и
-  своим меню (не окно внутри workspace, а отдельная страница), стоит завести
-  `core/registry/sectionRegistry.ts` по аналогии с `windowRegistry.ts`.
 - **Нет создания новых ресурсов.** `POST /resources` не реализован — окно
   «Конфигурация доступа» (`features/config`) работает с уже существующими
   сущностями (`GET /resources`), заводить новые через UI не просили. Сами

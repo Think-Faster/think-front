@@ -25,6 +25,8 @@ import {
 export interface TaskFilter extends PageRequest {
   dispatcherId?: string;
   status?: WorkTaskStatus;
+  // Заявки, где текущий пользователь назначен инженером (свой id знать не нужно).
+  assignedToMe?: boolean;
 }
 
 export const taskRepository = {

@@ -1,9 +1,12 @@
 import { useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
 import { CurrentUser } from '../../core/auth/types';
+import { SectionDefinition, visibleSections } from '../../core/registry/sectionRegistry';
 import { UserListItem } from '../../entities/user/types';
 import { useDismiss } from '../../shared/hooks/useDismiss';
 import { useAuthStore } from '../../stores/auth/authStore';
+import { usePermissionsStore } from '../../stores/permissions/permissionsStore';
 import { useProfileStore } from '../../stores/profile/profileStore';
 
 function getInitials(profile: UserListItem | null, user: CurrentUser | null): string {
@@ -18,10 +21,23 @@ function getInitials(profile: UserListItem | null, user: CurrentUser | null): st
   return '';
 }
 
+// Раздел, в котором пользователь сейчас: самый длинный совпавший путь
+// (у рабочей области путь «/» — она же всё, что не попало в другие).
+function currentSection(sections: SectionDefinition[], pathname: string): SectionDefinition | undefined {
+  return sections
+    .filter(section => section.path === '/' || pathname === section.path || pathname.startsWith(`${section.path}/`))
+    .sort((a, b) => b.path.length - a.path.length)[0];
+}
+
 export default function UserMenu() {
   const user = useAuthStore(state => state.user);
   const logout = useAuthStore(state => state.logout);
   const profile = useProfileStore(state => state.profile);
+  const permissions = usePermissionsStore(state => state.map);
+  const { pathname } = useLocation();
+  const sections = visibleSections(permissions);
+  const here = currentSection(sections, pathname);
+  const others = sections.filter(section => section !== here);
 
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,6 +69,12 @@ export default function UserMenu() {
             <div className="field-label">ID профиля</div>
             <div className="user-menu-id-value mono">{profile?.id ?? '—'}</div>
           </div>
+
+          {others.map(section => (
+            <Link key={section.id} className="btn user-menu-section" to={section.path} onClick={() => setOpen(false)}>
+              {section.title}
+            </Link>
+          ))}
 
           <button className="btn user-menu-logout" onClick={handleLogout}>
             Выйти
