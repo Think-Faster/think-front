@@ -226,10 +226,10 @@ TypeScript не подключался вообще. Все три файла/п
 - **Фаза 4 — Происшествия, график/присутствие/инженеры/бригады (сделано).**
   Пять сущностей за один заход — объём как у Фазы 1–3 вместе, но каждая
   по отдельности небольшая. См. «Фаза 4 (люди) — что добавлено» ниже.
-- **Фаза 5 — Админ-настройки модели (сделано).** Четыре сущности
-  (`ModelVersion`/`Coefficient`/`RetrainJob`/`IgnoredRange`) под единым
-  правом `model_settings:read`/`model_settings:manage`, без отдельных
-  create/update/delete, — по духу похоже на «Конфигурацию доступа». См.
+- **Фаза 5 — Админ-настройки модели (сделано, переделано).** Одна сущность
+  `modelControl`: состояние читается из модели (`/api/ml/status`), изменения
+  уходят командами в модель через BFF (`/bff/model-commands/*`), под единым
+  правом `model_settings:read`/`model_settings:manage`. См.
   «Фаза 5 (админ-настройки модели) — что добавлено» ниже.
 
 Все пять фаз доменного пласта закрыты — все 13 ресурсов из
@@ -420,45 +420,37 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
 
 #### Фаза 5 (админ-настройки модели) — что добавлено
 
-Четыре сущности (`modelVersion`, `coefficient`, `retrainJob`,
-`ignoredRange`), одно окно `ModelSettingsWindow` с четырьмя вкладками
-(`ChipFilterGroup`, тот же приём, что в `AssetsWindow`/`AccessWindow`/
-`PeopleWindow`). Гейтинг единый на все вкладки —
-`usePermission('model_settings', 'manage')` — доступа `create`/`update`
-отдельно не существует, см. доку.
+Первая версия держала четыре сущности (`modelVersion`, `coefficient`,
+`retrainJob`, `ignoredRange`) в собственной БД BFF — модель их не читала,
+правки ни на что не влияли. Теперь источник правды — сама модель: одна
+сущность `entities/modelControl`, одно окно `ModelSettingsWindow` с вкладками
+«Версии», «Рабочие доли», «Игнорируемые периоды», «График работ»
+(`ChipFilterGroup`). Гейтинг единый — `usePermission('model_settings', 'manage')`.
 
-- **Все 4 POST-ручки этого раздела — без описанного тела запроса в доке**
-  (единственный раздел, где это верно сразу для всех эндпоинтов, не только
-  для одного-двух, как в предыдущих фазах). Тело каждого запроса выведено
-  из соответствующего DTO за вычетом серверных полей — то же самое
-  рассуждение, что и для `schedule`/`brigade` в Фазе 4, применено здесь
-  последовательно ко всем четырём. Если бэкенд ждёт другой набор полей —
-  это всегда только `entities/<name>/types.ts`, компоненты не трогать.
-- **`ModelVersionDto.id` — исключение из общего правила «id генерирует
-  бэкенд».** Формулировка «Дубль `id` → `409 duplicate_code`» в доке имеет
-  смысл только если `id` задаёт клиент (человеческая версия вроде `v1.2.3`,
-  не UUID) — иначе дубликат генерируемого id структурно невозможен. Поэтому
-  `CreateModelVersionRequest` включает `id` как обязательное поле, в отличие
-  от `coefficient`/`retrainJob`/`ignoredRange`/`brigade`, где id — обычный
-  сервер-генерируемый.
-- **`coefficientRepository` без `update()` — версионирование, не
-  редактирование.** `POST /coefficients` всегда создаёт новую запись с
-  инкрементированным `version` (см. доку §3); `GET` отдаёт только последнюю
-  версию на каждый `type`. Форма создания в `CoefficientsTab.tsx` поэтому
-  всегда «Сохранить новую версию», не «Изменить», даже если коэффициент
-  этого типа уже есть.
-- **`retrainJobRepository` — только заявка, не запуск.** `POST
-  /retrain-jobs` создаёт запись со `status: "requested"`; сам процесс
-  переобучения делает `tf-model` асинхронно, BFF (и фронт) её не
-  дожидаются и не управляют — нет отмены/повтора с фронта, этого нет в
-  доке. `paramsJson` — сырой JSON-текст без схемы (тот же паттерн, что
-  `geometryGeoJson` у объектов), поэтому `<textarea>`, а не структурная
-  форма.
-- **`IgnoredRangesTab.tsx` показывает поле `objectId`/`sensorId` условно**
-  по выбранному `scope` (`all`/`object`/`sensor`) — по доке они обязательны
-  только при соответствующем значении `scope`, поле для неактуального
-  случая не показывается вовсе (а не «показать оба сразу и понадеяться на
-  бэкенд»).
+- **Чтение — из модели, запись — командой.** `GET /api/ml/status` отдаёт
+  версии по типам, рабочие доли с границами схемы, игнорируемые периоды и
+  флаг переобучения; `GET /api/ml/estimate?type=&share=` — оценку «тревог в
+  сутки» для доли. Изменения идут `POST /bff/model-commands/{switch,operating,gaps}`:
+  BFF проверяет право и тело, публикует команду в `tf.model.commands` и
+  отвечает `202` (или `503 model_commands_unavailable`). Почему так — в
+  `DECISIONS.md` think-bff, раздел «Админ-панель модели — команды в модель».
+- **`useModelStatus` дожидается применения.** После `202` хук перечитывает
+  `/status` (5 раз по 2 с), пока в нём не видна команда (номер версии или
+  выбранная версия типа). Не дождался — сообщение «модель пока не применила,
+  причина в её аудите»: модель отбрасывает снимок с устаревшим номером или
+  вне границ схемы.
+- **Снимки версионируются клиентом.** Рабочие доли и периоды уходят целиком
+  со следующим номером версии (`settings.version + 1`, `gaps.version + 1`) и
+  обязательной причиной. Доли вводятся в процентах и округляются до 1e-6 —
+  иначе хвост плавающей точки попал бы в аудит модели как изменение.
+- **Ротация версий** (`ModelVersionsTab`) — выбор «основная» или собранной
+  версии типа (`switch`, `versionId: null` = основная); если собранных версий
+  нет, показывается «одна версия».
+- **Переобучение — только статус.** В контуре оно выключено
+  (`retrain.enabled = false`), поэтому отдельной вкладки заявок нет: после
+  правки периодов «Версии» показывают «Нужно переобучение».
+- Старые ручки BFF (`/model-versions`, `/coefficients`, `/retrain-jobs`,
+  `/ignored-ranges`) остались в BFF как история, фронт их не вызывает.
 
 ## Редизайн: светлая тема и grid-workspace
 
@@ -973,18 +965,9 @@ src/
 │   ├── presence/
 │   │   ├── types.ts
 │   │   └── presenceRepository.ts      # GET /bff/presence?userIds= — только чтение
-│   ├── modelVersion/
-│   │   ├── types.ts                    # id задаёт клиент, не сервер (см. Фаза 5)
-│   │   └── modelVersionRepository.ts  # GET/POST /bff/model-versions, POST .../activate
-│   ├── coefficient/
-│   │   ├── types.ts
-│   │   └── coefficientRepository.ts   # GET/POST /bff/coefficients — без update(), версионируется
-│   ├── retrainJob/
-│   │   ├── types.ts
-│   │   └── retrainJobRepository.ts    # GET/POST /bff/retrain-jobs — только заявка, не запуск
-│   ├── ignoredRange/
-│   │   ├── types.ts
-│   │   └── ignoredRangeRepository.ts  # GET/POST/DELETE /bff/ignored-ranges[/{id}]
+│   ├── modelControl/
+│   │   ├── types.ts                    # состояние модели: версии, доли, периоды, переобучение
+│   │   └── modelControlRepository.ts  # GET /ml/status, /ml/estimate; POST /bff/model-commands/*
 │   └── notification/
 │       ├── types.ts                    # SendEmailRequest/Response, SUBJECT_MAX_LENGTH/TEXT_MAX_LENGTH
 │       └── notificationRepository.ts  # POST /bff/notifications/email
@@ -1079,13 +1062,12 @@ src/
 │   │   └── hooks/{useSchedule,useAssignedObjects,useEngineerProfile,useBrigades,usePresence}.ts
 │   ├── modelSettings/
 │   │   ├── ModelSettingsWindow.tsx      # окно workspace: вкладки настроек модели
-│   │   ├── ModelVersionsTab.tsx
-│   │   ├── CoefficientsTab.tsx
-│   │   ├── RetrainJobsTab.tsx
-│   │   ├── IgnoredRangesTab.tsx
+│   │   ├── ModelVersionsTab.tsx          # ротация версий по типам
+│   │   ├── OperatingSharesTab.tsx        # рабочие доли и rejectK, оценка тревог в сутки
+│   │   ├── IgnoredPeriodsTab.tsx         # игнорируемые периоды парка
 │   │   ├── WorkScheduleTab.tsx           # график ППР
 │   │   ├── modelSettingsLabels.ts
-│   │   └── hooks/{useModelVersions,useCoefficients,useRetrainJobs,useIgnoredRanges,useWorkSchedule}.ts
+│   │   └── hooks/{useModelStatus,useWorkSchedule}.ts
 │   └── notifications/
 │       ├── MailButton.tsx               # не окно workspace — гейтит себя локально, открывает Modal
 │       ├── SendEmailModal.tsx
