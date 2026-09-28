@@ -46,3 +46,17 @@ export function probabilityTone(probability: number): 'high' | 'med' | 'low' {
 export function formatProbability(probability: number): string {
   return `${Math.round(probability * 100)}%`;
 }
+
+// Справочник причин отклонения — docs/backend/домены-и-сущности.md (справочники).
+// Коды уходят в BFF и дальше в модель (decision.reject → reason_code, ML/INTEGRATION.md).
+export const rejectReasonOptions: { value: string; label: string }[] = [
+  { value: 'known_works', label: 'Известные работы на объекте' },
+  { value: 'false_alarm', label: 'Ложное срабатывание датчика' },
+  { value: 'seasonal', label: 'Штатное / сезонное явление' },
+  { value: 'handled_elsewhere', label: 'Уже отработано другой заявкой' },
+  { value: 'insufficient_data', label: 'Недостаточно данных' },
+  { value: 'other', label: 'Другое' },
+];
+
+// «Другое» без комментария не принимаем — по справочнику комментарий обязателен.
+export const REJECT_REASON_OTHER = 'other';

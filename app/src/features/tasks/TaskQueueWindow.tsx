@@ -47,7 +47,7 @@ export default function TaskQueueWindow() {
         <SearchField value={search} onChange={setSearch} />
         {canCreate && (
           <Button variant="primary" onClick={() => openWindow('taskCreate')}>
-            Создать задачу
+            Создать заявку
           </Button>
         )}
       </div>
