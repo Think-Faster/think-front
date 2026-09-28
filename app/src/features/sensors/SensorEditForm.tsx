@@ -2,6 +2,8 @@ import { ChangeEvent, FormEvent, useState } from 'react';
 
 import { Sensor } from '../../entities/sensor/types';
 import Button from '../../shared/ui/Button';
+import { useObjects } from '../objects/hooks/useObjects';
+import { usePickets } from './hooks/usePickets';
 import { useUpdateSensor } from './hooks/useUpdateSensor';
 
 interface SensorEditFormProps {
@@ -12,16 +14,18 @@ interface SensorEditFormProps {
 
 export default function SensorEditForm({ sensor, onSaved, onCancel }: SensorEditFormProps) {
   const { updateSensor, loading, error } = useUpdateSensor();
+  const { objects } = useObjects();
+  const { pickets } = usePickets(sensor.objectId, objects);
 
   const [form, setForm] = useState({
     name: sensor.name,
     tag: sensor.tag ?? '',
-    picketId: sensor.picketId ?? '',
+    picketId: sensor.picketId === null ? '' : String(sensor.picketId),
     isActive: sensor.isActive,
   });
 
   function setField(field: 'name' | 'tag' | 'picketId') {
-    return (event: ChangeEvent<HTMLInputElement>) =>
+    return (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm(current => ({ ...current, [field]: event.target.value }));
   }
 
@@ -31,7 +35,7 @@ export default function SensorEditForm({ sensor, onSaved, onCancel }: SensorEdit
     const updated = await updateSensor(sensor.id, {
       name: form.name,
       tag: form.tag || null,
-      picketId: form.picketId || null,
+      picketId: form.picketId ? Number(form.picketId) : null,
       isActive: form.isActive,
     });
 
@@ -53,8 +57,19 @@ export default function SensorEditForm({ sensor, onSaved, onCancel }: SensorEdit
       </label>
 
       <label>
-        ID пикета
-        <input value={form.picketId} onChange={setField('picketId')} disabled={loading} />
+        Пикет
+        <select value={form.picketId} onChange={setField('picketId')} disabled={loading}>
+          <option value="">— без пикета —</option>
+          {/* Пикет, которого нет в списке (ещё грузится или чужой), не теряется. */}
+          {form.picketId && !pickets.some(picket => String(picket.id) === form.picketId) && (
+            <option value={form.picketId}>#{form.picketId}</option>
+          )}
+          {pickets.map(picket => (
+            <option key={picket.id} value={picket.id}>
+              {picket.code}
+            </option>
+          ))}
+        </select>
       </label>
 
       <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}>

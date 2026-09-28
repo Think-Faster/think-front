@@ -3,16 +3,16 @@ import { ChangeEvent, FormEvent, useState } from 'react';
 import { usePermission } from '../../core/permissions/permissionService';
 import { MonitoredObject } from '../../entities/object/types';
 import Button from '../../shared/ui/Button';
+import ChoiceField from '../../shared/ui/ChoiceField';
 import EmptyState from '../../shared/ui/EmptyState';
 import Modal from '../../shared/ui/Modal';
 import { useCreateObject } from './hooks/useCreateObject';
 import { useObjects } from './hooks/useObjects';
 import ObjectEditForm from './ObjectEditForm';
-import { objectStatusLabels } from './objectLabels';
+import { childObjectLevel, objectKindOptions, objectLevelLabel, objectStatusLabels } from './objectLabels';
 
 const emptyForm = {
   id: '',
-  level: '',
   parentId: '',
   kind: '',
   name: '',
@@ -34,12 +34,15 @@ export default function ObjectsPanel() {
       setForm(current => ({ ...current, [field]: event.target.value }));
   }
 
+  // Уровень не вводится: он следует из родителя.
+  const level = childObjectLevel(objects.find(object => String(object.id) === form.parentId));
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
     const created = await createObject({
       id: Number(form.id),
-      level: Number(form.level),
+      level,
       parentId: form.parentId ? Number(form.parentId) : null,
       kind: form.kind,
       name: form.name,
@@ -89,11 +92,6 @@ export default function ObjectsPanel() {
             </label>
 
             <label>
-              Уровень
-              <input value={form.level} onChange={setField('level')} type="number" disabled={creating} required />
-            </label>
-
-            <label>
               Родительский объект
               <select value={form.parentId} onChange={setField('parentId')} disabled={creating}>
                 <option value="">— нет —</option>
@@ -103,11 +101,19 @@ export default function ObjectsPanel() {
                   </option>
                 ))}
               </select>
+              <span className="form-hint">Уровень: {objectLevelLabel(level)}</span>
             </label>
 
             <label>
-              Тип
-              <input value={form.kind} onChange={setField('kind')} disabled={creating} required />
+              Вид объекта
+              <ChoiceField
+                value={form.kind}
+                onChange={kind => setForm(current => ({ ...current, kind }))}
+                options={objectKindOptions(objects)}
+                allowCustom
+                disabled={creating}
+                required
+              />
             </label>
 
             <label>

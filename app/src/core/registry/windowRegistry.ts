@@ -1,6 +1,7 @@
 import { ComponentType } from 'react';
 
 import { hasPermission, PermissionAction } from '../permissions/permissionService';
+import { definitionIdOf, instanceNumber } from '../workspace/windowInstance';
 import AccessWindow from '../../features/access/AccessWindow';
 import AssetsWindow from '../../features/assets/AssetsWindow';
 import ConfigWindow from '../../features/config/ConfigWindow';
@@ -44,6 +45,10 @@ export interface WindowDefinition {
   // Окно показывает объект, выбранный на карте: его номер попадает в
   // подпись свёрнутого окна.
   followsSelection?: boolean;
+  // Окно можно открыть в нескольких экземплярах (кнопка «+» у раздела и
+  // «копия» в шапке). Первый следует общему выбору и адресу, копия держит
+  // свой объект или карточку — см. stores/workspace/windowScope.ts.
+  multiple?: boolean;
   // Все текущие окна завязаны на реальные BFF-ресурсы, поэтому
   // requiredPermission обязателен — окно видно, только если у пользователя
   // есть хотя бы одно из перечисленных прав (логическое ИЛИ). Если когда-то
@@ -71,6 +76,18 @@ export function isWindowVisible(
   );
 }
 
+// Запись реестра для окна на холсте: у копии `map:2` — запись `map`.
+export function findWindowDefinition(windowId: string): WindowDefinition | undefined {
+  const definitionId = definitionIdOf(windowId);
+  return windowRegistry.find(item => item.id === definitionId);
+}
+
+// Заголовок экземпляра: «Карта», «Карта 2».
+export function windowTitle(definition: WindowDefinition, windowId: string): string {
+  const number = instanceNumber(windowId);
+  return number > 1 ? `${definition.title} ${number}` : definition.title;
+}
+
 // Adding a new workspace window is a registry entry, not a change to
 // WorkspaceCanvas or WorkspaceSidebar (see архитектура §21, §54).
 export const windowRegistry: WindowDefinition[] = [
@@ -79,6 +96,7 @@ export const windowRegistry: WindowDefinition[] = [
     title: 'Карта',
     component: MapWindow,
     section: 'primary',
+    multiple: true,
     defaultOpen: true,
     followsSelection: true,
     requiredPermission: [{ resource: 'objects', action: 'read' }],
@@ -88,6 +106,7 @@ export const windowRegistry: WindowDefinition[] = [
     title: 'Журнал прогнозов',
     component: PredictionQueueWindow,
     section: 'primary',
+    multiple: true,
     defaultOpen: true,
     requiredPermission: [{ resource: 'predictions', action: 'read' }],
   },
@@ -96,6 +115,7 @@ export const windowRegistry: WindowDefinition[] = [
     title: 'Дневник диспетчера',
     component: TaskQueueWindow,
     section: 'primary',
+    multiple: true,
     defaultOpen: false,
     requiredPermission: [{ resource: 'tasks', action: 'read' }],
   },
@@ -104,6 +124,7 @@ export const windowRegistry: WindowDefinition[] = [
     title: 'История объектов',
     component: ObjectHistoryWindow,
     section: 'primary',
+    multiple: true,
     defaultOpen: false,
     followsSelection: true,
     requiredPermission: [{ resource: 'objects', action: 'read' }],
@@ -122,6 +143,7 @@ export const windowRegistry: WindowDefinition[] = [
     title: 'Журнал данных',
     component: DataLogWindow,
     section: 'primary',
+    multiple: true,
     defaultOpen: false,
     followsSelection: true,
     requiredPermission: [{ resource: 'predictions', action: 'read' }],
@@ -134,6 +156,7 @@ export const windowRegistry: WindowDefinition[] = [
     title: 'Логи',
     component: LogsWindow,
     section: 'primary',
+    multiple: true,
     defaultOpen: false,
     followsSelection: true,
     requiredPermission: [
@@ -146,6 +169,7 @@ export const windowRegistry: WindowDefinition[] = [
     title: 'Карточка прогноза',
     component: PredictionDetailWindow,
     section: 'detail',
+    multiple: true,
     defaultOpen: false,
     route: '/predictions/:id',
     requiredPermission: [{ resource: 'predictions', action: 'read' }],
@@ -155,6 +179,7 @@ export const windowRegistry: WindowDefinition[] = [
     title: 'Карточка заявки',
     component: TaskDetailWindow,
     section: 'detail',
+    multiple: true,
     defaultOpen: false,
     route: '/tasks/:id',
     requiredPermission: [{ resource: 'tasks', action: 'read' }],

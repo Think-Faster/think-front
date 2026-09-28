@@ -1,4 +1,5 @@
 import { ReturnTargetType, TaskSourceType, WorkTaskStatus } from '../../entities/task/types';
+import { textChoiceOptions } from '../../shared/ui/ChoiceField';
 
 export const taskSourceTypeLabels: Record<TaskSourceType, string> = {
   prediction: 'прогноз',
@@ -78,6 +79,40 @@ export const taskResultOptions: { value: string; label: string }[] = [
 export function taskResultLabel(code: string): string {
   return taskResultOptions.find(option => option.value === code)?.label ?? code;
 }
+
+// Вид работ и классификация неисправности — справочники §11 доменного
+// документа. Кодов у них нет ни в документе, ни в BFF (поле — свободная
+// строка), поэтому хранится сама подпись: её же показывает карточка заявки.
+export const taskWorkTypeOptions = textChoiceOptions([
+  'Осмотр',
+  'Замена датчика',
+  'Ремонт оборудования',
+  'Откачка воды',
+  'Проветривание',
+  'Проверка охраны',
+  'Прочее',
+]);
+
+export const taskFaultClassificationOptions = textChoiceOptions([
+  'Датчик',
+  'Питание',
+  'Насос/вентиляция',
+  'Конструктив',
+  'Связь',
+  'Ложная',
+]);
+
+// Приоритет заявки: BFF принимает число и сам ставит 3 заявке из прогноза.
+// Шкала в доменном документе не утверждена — принято 1 (высший) … 5.
+export const TASK_PRIORITY_DEFAULT = 3;
+
+export const taskPriorityOptions: { value: string; label: string }[] = [
+  { value: '1', label: '1 — наивысший' },
+  { value: '2', label: '2 — высокий' },
+  { value: '3', label: '3 — обычный' },
+  { value: '4', label: '4 — низкий' },
+  { value: '5', label: '5 — наименьший' },
+];
 
 // BFF пишет статус назначения строкой: действующее — "assigned", после
 // переназначения прежнее становится "replaced".

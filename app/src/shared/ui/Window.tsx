@@ -1,6 +1,6 @@
 import { CSSProperties, PointerEvent, ReactNode } from 'react';
 
-import { CloseIcon, MinimizeIcon, ReloadIcon } from './icons';
+import { CloseIcon, DuplicateIcon, MinimizeIcon, ReloadIcon } from './icons';
 
 interface WindowProps {
   windowId: string;
@@ -8,6 +8,9 @@ interface WindowProps {
   onClose: () => void;
   onMinimize?: () => void;
   onReload?: () => void;
+  // Ещё одно окно того же раздела с тем же объектом (есть у разделов,
+  // которые можно держать открытыми в нескольких экземплярах).
+  onDuplicate?: () => void;
   // Перетаскивание за шапку: в свободном режиме двигает окно, в сегментном —
   // несёт призрак к ячейке или мусорке (см. widgets/workspace/trashZone.ts).
   onHeadPointerDown?: (event: PointerEvent<HTMLDivElement>) => void;
@@ -21,7 +24,7 @@ interface WindowProps {
   children: ReactNode;
 }
 
-// Шапка по макету: градиент, белый заголовок, справа ↻ – ×. Кнопки шапки
+// Шапка по макету: градиент, белый заголовок, справа ⧉ ↻ – ×. Кнопки шапки
 // гасят pointerdown, чтобы клик по ним не начинал перетаскивание окна.
 // data-window-id — метка окна для hit-теста при броске.
 export default function Window({
@@ -30,6 +33,7 @@ export default function Window({
   onClose,
   onMinimize,
   onReload,
+  onDuplicate,
   onHeadPointerDown,
   onHeadPointerMove,
   onHeadPointerUp,
@@ -59,6 +63,17 @@ export default function Window({
         <span className="win-title">{title}</span>
 
         <div className="win-actions">
+          {onDuplicate && (
+            <button
+              className="win-btn"
+              onPointerDown={stop}
+              onClick={onDuplicate}
+              title="Открыть ещё одно такое окно"
+              aria-label="Открыть ещё одно такое окно"
+            >
+              <DuplicateIcon />
+            </button>
+          )}
           {onReload && (
             <button className="win-btn" onPointerDown={stop} onClick={onReload} title="Обновить" aria-label="Обновить">
               <ReloadIcon />

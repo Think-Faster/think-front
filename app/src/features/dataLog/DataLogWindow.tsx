@@ -8,8 +8,7 @@ import Badge from '../../shared/ui/Badge';
 import EmptyState from '../../shared/ui/EmptyState';
 import ListFooter from '../../shared/ui/ListFooter';
 import SearchField, { matchesSearch } from '../../shared/ui/SearchField';
-import { useSelectionStore } from '../../stores/selection/selectionStore';
-import { openWindow } from '../../stores/workspace/workspaceCommands';
+import { openWindowWithObject, useWindowObject } from '../../stores/workspace/windowScope';
 import { useObjects } from '../objects/hooks/useObjects';
 import { predictionTypeLabels } from '../predictions/predictionLabels';
 
@@ -18,8 +17,7 @@ import { predictionTypeLabels } from '../predictions/predictionLabels';
 // показан объект, выбранный на карте; «Все объекты» снимает фильтр.
 export default function DataLogWindow() {
   const { objects } = useObjects();
-  const selectedId = useSelectionStore(state => state.objectId);
-  const setSelectedId = useSelectionStore(state => state.setObjectId);
+  const [selectedId, setSelectedId] = useWindowObject();
   const [search, setSearch] = useState('');
   // «История объектов» требует objects:read, журнал данных — predictions:read.
   const canOpenHistory = usePermission('objects', 'read');
@@ -42,7 +40,7 @@ export default function DataLogWindow() {
   function showObject(id: number) {
     setSelectedId(id);
     if (canOpenHistory) {
-      openWindow('objectHistory');
+      openWindowWithObject('objectHistory', id);
     }
   }
 

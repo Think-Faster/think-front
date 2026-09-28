@@ -6,9 +6,10 @@ import { scheduleRepository } from '../../entities/schedule/scheduleRepository';
 import { ScheduleEntry, ScheduleStatus } from '../../entities/schedule/types';
 import Button from '../../shared/ui/Button';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
+import ChoiceField from '../../shared/ui/ChoiceField';
 import EmptyState from '../../shared/ui/EmptyState';
 import { useSchedule } from './hooks/useSchedule';
-import { scheduleStatusLabels, scheduleStatusOptions } from './peopleLabels';
+import { scheduleSourceOptions, scheduleStatusLabels, scheduleStatusOptions } from './peopleLabels';
 
 interface ScheduleTabProps {
   userId: string;
@@ -118,9 +119,12 @@ export default function ScheduleTab({ userId }: ScheduleTabProps) {
 
           <label>
             Источник
-            <input
+            <ChoiceField
               value={form.source}
-              onChange={event => setForm(current => ({ ...current, source: event.target.value }))}
+              onChange={value => setForm(current => ({ ...current, source: value }))}
+              options={scheduleSourceOptions}
+              allowCustom
+              placeholder="— не указан —"
               disabled={saving}
             />
           </label>

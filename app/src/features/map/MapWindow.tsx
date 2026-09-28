@@ -1,10 +1,11 @@
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { usePermission } from '../../core/permissions/permissionService';
+import { isPrimaryInstance, useWindowInstance } from '../../core/workspace/windowInstance';
 import { MonitoredObject } from '../../entities/object/types';
 import { taskRepository } from '../../entities/task/taskRepository';
 import EmptyState from '../../shared/ui/EmptyState';
-import { useSelectionStore } from '../../stores/selection/selectionStore';
+import { useWindowObject } from '../../stores/workspace/windowScope';
 import { useObjects } from '../objects/hooks/useObjects';
 import { City } from './city';
 import CityLayer from './CityLayer';
@@ -82,8 +83,8 @@ function niceStep(raw: number): number {
 // Клик по любому объекту открывает карточку сведений (MapInfoCard).
 export default function MapWindow() {
   const { objects, loading: objectsLoading, error: objectsError } = useObjects();
-  const selectedId = useSelectionStore(state => state.objectId);
-  const setSelectedId = useSelectionStore(state => state.setObjectId);
+  // Первая карта следует общему выбору, копия — своему объекту.
+  const [selectedId, setSelectedId] = useWindowObject();
   const canTasks = usePermission('tasks', 'read');
 
   const byId = useMemo(() => new Map(objects.map(object => [object.id, object])), [objects]);
@@ -402,8 +403,12 @@ export default function MapWindow() {
   const requestSeq = useMapRequest(state => state.seq);
   const requestId = useMapRequest(state => state.objectId);
   const requestRef = useRef(0);
+  // «Показать на карте» из других окон исполняет первая карта; копия держит
+  // свой объект.
+  const instance = useWindowInstance();
+  const takesRequests = !instance || isPrimaryInstance(instance.windowId);
   useEffect(() => {
-    if (requestSeq === requestRef.current || requestId === null) {
+    if (!takesRequests || requestSeq === requestRef.current || requestId === null) {
       return;
     }
     const object = byId.get(requestId);
@@ -411,7 +416,7 @@ export default function MapWindow() {
       requestRef.current = requestSeq;
       navigate(object);
     }
-  }, [requestSeq, requestId, byId, navigate]);
+  }, [takesRequests, requestSeq, requestId, byId, navigate]);
 
   const guarded =
     <T,>(action: (value: T) => void) =>

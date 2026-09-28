@@ -7,7 +7,7 @@ import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
 import EmptyState from '../../shared/ui/EmptyState';
 import ListFooter from '../../shared/ui/ListFooter';
 import SearchField, { matchesSearch } from '../../shared/ui/SearchField';
-import { useSelectionStore } from '../../stores/selection/selectionStore';
+import { useWindowObject } from '../../stores/workspace/windowScope';
 import { openWindow } from '../../stores/workspace/workspaceCommands';
 import { useObjects } from '../objects/hooks/useObjects';
 import { useReadingsScope } from './hooks/useReadingsScope';
@@ -63,8 +63,7 @@ function formatClock(iso: string): string {
 // по которым работает, пока заявка не закрыта отчётом.
 export default function LogsWindow() {
   const { objects } = useObjects();
-  const selectedId = useSelectionStore(state => state.objectId);
-  const setSelectedId = useSelectionStore(state => state.setObjectId);
+  const [selectedId, setSelectedId] = useWindowObject();
   const { scope, error: scopeError } = useReadingsScope();
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');

@@ -1,6 +1,6 @@
 import { CSSProperties, PointerEvent, useRef } from 'react';
 
-import { WindowDefinition } from '../../core/registry/windowRegistry';
+import { WindowDefinition, windowTitle } from '../../core/registry/windowRegistry';
 import { DIVIDER_SIZE, MIN_TRACK_SIZE } from '../../core/workspace/gridConfig';
 import Window from '../../shared/ui/Window';
 import { useGridStore } from '../../stores/workspace/gridStore';
@@ -8,7 +8,7 @@ import { useLayoutStore } from '../../stores/workspace/layoutStore';
 import { closeWindow, minimizeWindow, restoreWindow } from '../../stores/workspace/workspaceCommands';
 import GridDivider from './GridDivider';
 import { cancelDrag, DragSession, finishGridDrop, startDragSession, updateDragSession } from './trashZone';
-import WindowContent, { useVisibleDefinition, useWindowContext } from './WindowContent';
+import WindowContent, { useDuplicateWindow, useVisibleDefinition, useWindowContext } from './WindowContent';
 
 // Дорожка i живёт на линии 2i+1, разделитель между i и i+1 — на линии 2i+2
 // (между каждой парой дорожек стоит дорожка-разделитель DIVIDER_SIZE).
@@ -33,33 +33,44 @@ function GridSlot({ windowId, columnId, rowId, style }: SlotProps) {
 
   return (
     <div className="grid-slot" data-cell="" data-column-id={columnId} data-row-id={rowId} style={style}>
-      {minimized ? <MinimizedCell definition={definition} /> : <GridWindow definition={definition} />}
+      {minimized ? (
+        <MinimizedCell windowId={windowId} definition={definition} />
+      ) : (
+        <GridWindow windowId={windowId} definition={definition} />
+      )}
     </div>
   );
 }
 
-function MinimizedCell({ definition }: { definition: WindowDefinition }) {
-  const context = useWindowContext(definition.id);
+interface WindowProps {
+  windowId: string;
+  definition: WindowDefinition;
+}
+
+function MinimizedCell({ windowId, definition }: WindowProps) {
+  const context = useWindowContext(windowId);
   return (
     <div className="cell-minimized">
-      <button className="min-strip" onClick={() => restoreWindow(definition.id)} title="Развернуть">
-        <span className="min-title">{definition.title}</span>
+      <button className="min-strip" onClick={() => restoreWindow(windowId)} title="Развернуть">
+        <span className="min-title">{windowTitle(definition, windowId)}</span>
         {context && <span className="min-ctx">{context}</span>}
       </button>
     </div>
   );
 }
 
-function GridWindow({ definition }: { definition: WindowDefinition }) {
-  const drag = useLayoutStore(state => (state.drag?.windowId === definition.id ? state.drag : null));
+function GridWindow({ windowId, definition }: WindowProps) {
+  const drag = useLayoutStore(state => (state.drag?.windowId === windowId ? state.drag : null));
   const reload = useLayoutStore(state => state.reload);
+  const duplicate = useDuplicateWindow(windowId, definition);
+  const title = windowTitle(definition, windowId);
   const sessionRef = useRef<DragSession | null>(null);
 
   function handleDown(event: PointerEvent<HTMLDivElement>) {
     if (event.button !== 0) {
       return;
     }
-    sessionRef.current = startDragSession(definition.id, definition.title, 'window', event.clientX, event.clientY);
+    sessionRef.current = startDragSession(windowId, title, 'window', event.clientX, event.clientY);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -84,17 +95,18 @@ function GridWindow({ definition }: { definition: WindowDefinition }) {
 
   return (
     <Window
-      windowId={definition.id}
-      title={definition.title}
+      windowId={windowId}
+      title={title}
       className={classes}
-      onClose={() => closeWindow(definition.id)}
-      onMinimize={() => minimizeWindow(definition.id)}
-      onReload={() => reload(definition.id)}
+      onClose={() => closeWindow(windowId)}
+      onMinimize={() => minimizeWindow(windowId)}
+      onReload={() => reload(windowId)}
+      onDuplicate={duplicate}
       onHeadPointerDown={handleDown}
       onHeadPointerMove={handleMove}
       onHeadPointerUp={handleUp}
     >
-      <WindowContent definition={definition} />
+      <WindowContent windowId={windowId} definition={definition} />
     </Window>
   );
 }
