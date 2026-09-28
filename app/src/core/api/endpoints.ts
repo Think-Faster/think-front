@@ -3,7 +3,8 @@ export const endpoints = {
     login: '/auth/login',
     me: '/auth/me',
     register: '/auth/create',
-    // Нет ручки логаута — выход обрабатывается на фронте, см. authStore.logout().
+    refresh: '/auth/refresh',
+    logout: '/auth/logout',
   },
 
   // BFF sits behind the same nginx/domain under /api/bff/* — see
