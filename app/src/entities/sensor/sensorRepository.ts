@@ -1,7 +1,7 @@
 import { apiClient } from '../../core/api/client';
 import { endpoints } from '../../core/api/endpoints';
 import { PagedResult, PageRequest } from '../../core/api/types';
-import { CreateSensorRequest, Sensor, UpdateSensorRequest } from './types';
+import { CreateSensorRequest, Sensor, SensorTypeOption, UpdateSensorRequest } from './types';
 
 export interface SensorFilter extends PageRequest {
   objectId?: number;
@@ -16,6 +16,11 @@ export const sensorRepository = {
       params: filter,
     });
 
+    return data;
+  },
+
+  async getTypes(): Promise<SensorTypeOption[]> {
+    const { data } = await apiClient.get<SensorTypeOption[]>(endpoints.bff.sensors.types);
     return data;
   },
 

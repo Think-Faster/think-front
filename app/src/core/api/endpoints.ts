@@ -30,10 +30,12 @@ export const endpoints = {
       list: '/bff/objects',
       byId: (id: number) => `/bff/objects/${id}`,
       layers: (id: number) => `/bff/objects/${id}/layers`,
+      pickets: (id: number) => `/bff/objects/${id}/pickets`,
     },
     sensors: {
       list: '/bff/sensors',
       byId: (id: number) => `/bff/sensors/${id}`,
+      types: '/bff/sensors/types',
     },
     predictions: {
       list: '/bff/predictions',

@@ -19,7 +19,9 @@ export default function ChipFilterGroup<T extends string>({
       {options.map(option => (
         <button
           key={option.value}
+          type="button"
           className={`chip-filter ${option.value === value ? 'active' : ''}`}
+          aria-pressed={option.value === value}
           onClick={() => onChange(option.value)}
         >
           {option.label}

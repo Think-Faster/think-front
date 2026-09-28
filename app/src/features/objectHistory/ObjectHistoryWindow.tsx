@@ -7,7 +7,7 @@ import Badge from '../../shared/ui/Badge';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
 import EmptyState from '../../shared/ui/EmptyState';
 import ListFooter from '../../shared/ui/ListFooter';
-import { useSelectionStore } from '../../stores/selection/selectionStore';
+import { useWindowObject } from '../../stores/workspace/windowScope';
 import { openWindow } from '../../stores/workspace/workspaceCommands';
 import { useObjects } from '../objects/hooks/useObjects';
 import { objectStatusLabels } from '../objects/objectLabels';
@@ -33,8 +33,7 @@ const kindOptions: { value: EntryKind | 'all'; label: string }[] = [
 // из общего выбора (клик по участку на карте) и меняется здесь же.
 export default function ObjectHistoryWindow() {
   const { objects } = useObjects();
-  const objectId = useSelectionStore(state => state.objectId);
-  const setObjectId = useSelectionStore(state => state.setObjectId);
+  const [objectId, setObjectId] = useWindowObject();
   const [kind, setKind] = useState<EntryKind | 'all'>('all');
   const [shownCount, setShownCount] = useState(LIST_PAGE_SIZE);
 

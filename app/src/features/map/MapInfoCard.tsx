@@ -3,7 +3,7 @@ import { ReactNode } from 'react';
 import { usePermission } from '../../core/permissions/permissionService';
 import { MonitoredObject } from '../../entities/object/types';
 import Button from '../../shared/ui/Button';
-import { openWindow } from '../../stores/workspace/workspaceCommands';
+import { openWindowWithObject } from '../../stores/workspace/windowScope';
 import { City } from './city';
 import { CollectorModel, fallbackSystem, roleLabels, systemByName } from './collector';
 import { Geometry, lineLength, lines, midpoint, point, Pt } from './geo';
@@ -94,7 +94,7 @@ export default function MapInfoCard({
 
   const open = (id: number, windowId: string) => {
     onSelect(id);
-    openWindow(windowId);
+    openWindowWithObject(windowId, id);
   };
 
   let title = '';

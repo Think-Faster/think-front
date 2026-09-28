@@ -2,12 +2,16 @@ import { ChangeEvent, FormEvent, useState } from 'react';
 
 import { usePermission } from '../../core/permissions/permissionService';
 import { Sensor } from '../../entities/sensor/types';
-import { useObjects } from '../objects/hooks/useObjects';
 import Button from '../../shared/ui/Button';
+import ChoiceField from '../../shared/ui/ChoiceField';
 import EmptyState from '../../shared/ui/EmptyState';
+import { useObjects } from '../objects/hooks/useObjects';
 import { useCreateSensor } from './hooks/useCreateSensor';
+import { usePickets } from './hooks/usePickets';
 import { useSensors } from './hooks/useSensors';
+import { useSensorTypes } from './hooks/useSensorTypes';
 import SensorEditForm from './SensorEditForm';
+import { sensorSystemOptions, sensorTypeOptions } from './sensorLabels';
 
 const emptyForm = {
   id: '',
@@ -29,6 +33,12 @@ export default function SensorsPanel() {
 
   const [form, setForm] = useState(emptyForm);
   const [editingSensor, setEditingSensor] = useState<Sensor | null>(null);
+  const types = useSensorTypes();
+  const { pickets } = usePickets(form.objectId ? Number(form.objectId) : null, objects);
+
+  function setValue(field: keyof typeof emptyForm) {
+    return (value: string) => setForm(current => ({ ...current, [field]: value }));
+  }
 
   function setField(field: keyof typeof emptyForm) {
     return (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -46,7 +56,7 @@ export default function SensorsPanel() {
     const created = await createSensor({
       id: Number(form.id),
       objectId: Number(form.objectId),
-      picketId: form.picketId || null,
+      picketId: form.picketId ? Number(form.picketId) : null,
       system: form.system,
       sType: form.sType,
       tag: form.tag || null,
@@ -125,7 +135,12 @@ export default function SensorsPanel() {
 
               <label>
                 Объект
-                <select value={form.objectId} onChange={setField('objectId')} disabled={creating} required>
+                <select
+                  value={form.objectId}
+                  onChange={event => setForm(current => ({ ...current, objectId: event.target.value, picketId: '' }))}
+                  disabled={creating}
+                  required
+                >
                   <option value="">— выбрать —</option>
                   {objects.map(object => (
                     <option key={object.id} value={object.id}>
@@ -136,18 +151,43 @@ export default function SensorsPanel() {
               </label>
 
               <label>
-                ID пикета (опционально)
-                <input value={form.picketId} onChange={setField('picketId')} disabled={creating} />
+                Пикет
+                <select
+                  value={form.picketId}
+                  onChange={setField('picketId')}
+                  disabled={creating || !form.objectId || pickets.length === 0}
+                >
+                  <option value="">{form.objectId && pickets.length === 0 ? '— у объекта нет пикетов —' : '— без пикета —'}</option>
+                  {pickets.map(picket => (
+                    <option key={picket.id} value={picket.id}>
+                      {picket.code}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label>
-                Система
-                <input value={form.system} onChange={setField('system')} disabled={creating} required />
+                Подсистема
+                <ChoiceField
+                  value={form.system}
+                  onChange={value => setForm(current => ({ ...current, system: value, sType: '' }))}
+                  options={sensorSystemOptions(types)}
+                  allowCustom
+                  disabled={creating}
+                  required
+                />
               </label>
 
               <label>
                 Тип
-                <input value={form.sType} onChange={setField('sType')} disabled={creating} required />
+                <ChoiceField
+                  value={form.sType}
+                  onChange={setValue('sType')}
+                  options={sensorTypeOptions(types, form.system)}
+                  allowCustom
+                  disabled={creating}
+                  required
+                />
               </label>
 
               <label>

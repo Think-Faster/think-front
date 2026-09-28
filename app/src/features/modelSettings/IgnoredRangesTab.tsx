@@ -5,6 +5,8 @@ import { IgnoredRangeScope } from '../../entities/ignoredRange/types';
 import Button from '../../shared/ui/Button';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
 import EmptyState from '../../shared/ui/EmptyState';
+import { useObjects } from '../objects/hooks/useObjects';
+import { useSensors } from '../sensors/hooks/useSensors';
 import { useIgnoredRanges } from './hooks/useIgnoredRanges';
 import { ignoredRangeScopeLabels, ignoredRangeScopeOptions } from './modelSettingsLabels';
 
@@ -22,6 +24,13 @@ export default function IgnoredRangesTab() {
   const canManage = usePermission('model_settings', 'manage');
 
   const [form, setForm] = useState(emptyForm);
+  const { objects } = useObjects();
+  // Датчик выбирается внутри объекта: сначала объект, потом его датчик.
+  const { sensors } = useSensors(form.objectId ? Number(form.objectId) : undefined);
+
+  function objectName(id: number): string {
+    return objects.find(object => object.id === id)?.name ?? `#${id}`;
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -51,8 +60,8 @@ export default function IgnoredRangesTab() {
           <div>
             <div>
               {ignoredRangeScopeLabels[range.scope]}
-              {range.objectId ? ` #${range.objectId}` : ''}
-              {range.sensorId ? ` #${range.sensorId}` : ''}
+              {range.objectId ? ` · ${objectName(range.objectId)}` : ''}
+              {range.sensorId ? ` · датчик #${range.sensorId}` : ''}
             </div>
             <div className="d">
               {range.dateFrom} — {range.dateTo} · {range.reason}
@@ -80,29 +89,42 @@ export default function IgnoredRangesTab() {
             />
           </label>
 
-          {form.scope === 'object' && (
+          {(form.scope === 'object' || form.scope === 'sensor') && (
             <label>
-              ID объекта
-              <input
-                type="number"
+              Объект
+              <select
                 value={form.objectId}
-                onChange={event => setForm(current => ({ ...current, objectId: event.target.value }))}
+                onChange={event => setForm(current => ({ ...current, objectId: event.target.value, sensorId: '' }))}
                 disabled={acting}
                 required
-              />
+              >
+                <option value="">— выбрать —</option>
+                {objects.map(object => (
+                  <option key={object.id} value={object.id}>
+                    {object.name} (#{object.id})
+                  </option>
+                ))}
+              </select>
             </label>
           )}
 
           {form.scope === 'sensor' && (
             <label>
-              ID датчика
-              <input
-                type="number"
+              Датчик
+              <select
                 value={form.sensorId}
                 onChange={event => setForm(current => ({ ...current, sensorId: event.target.value }))}
-                disabled={acting}
+                disabled={acting || !form.objectId}
                 required
-              />
+              >
+                <option value="">{form.objectId ? '— выбрать —' : '— сначала объект —'}</option>
+                {form.objectId &&
+                  sensors.map(sensor => (
+                    <option key={sensor.id} value={sensor.id}>
+                      {sensor.name} (#{sensor.id})
+                    </option>
+                  ))}
+              </select>
             </label>
           )}
 
