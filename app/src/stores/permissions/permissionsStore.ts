@@ -1,12 +1,22 @@
 import { create } from 'zustand';
 
+import { BffErrorCode, parseBffError } from '../../core/errors/bffError';
 import { permissionsApi } from '../../core/permissions/permissionsApi';
 import type { PermissionAction } from '../../core/permissions/permissionService';
 
 export type PermissionsMap = Record<string, PermissionAction[]>;
 
+// idle — ещё не спрашивали, loading — ждём ответа, ready — ответ получен
+// (карта может быть пустой: прав нет), error — запрос не прошёл.
+export type PermissionsStatus = 'idle' | 'loading' | 'ready' | 'error';
+
 interface PermissionsState {
   map: PermissionsMap;
+  status: PermissionsStatus;
+  // Код ошибки BFF при status = 'error': 403 бывает трёх видов
+  // (user_not_provisioned / user_inactive / permission_denied), шторка
+  // называет причину, а не пишет общее «не удалось».
+  errorCode: BffErrorCode | null;
   load: () => Promise<void>;
 }
 
@@ -15,17 +25,21 @@ interface PermissionsState {
 // ошибке запроса — раздел, завязанный на права, не должен показываться
 // "на всякий случай". Разделы на локальных моках (предсказания) под это не
 // подпадают — они не требуют permission вовсе, см.
-// core/registry/windowRegistry.ts.
+// core/registry/windowRegistry.ts. Отличить «прав нет» от «не загрузилось»
+// можно по status — шторка пишет об этом, а не остаётся пустой.
 export const usePermissionsStore = create<PermissionsState>(set => ({
   map: {},
+  status: 'idle',
+  errorCode: null,
 
   load: async () => {
+    set({ status: 'loading', errorCode: null });
     try {
       const response = await permissionsApi.getMyPermissions();
-      set({ map: response.permissions });
+      set({ map: response.permissions ?? {}, status: 'ready' });
     } catch (error) {
       console.warn('GET /permissions/me недоступна — доступ к разделам с правами скрыт', error);
-      set({ map: {} });
+      set({ map: {}, status: 'error', errorCode: parseBffError(error).code });
     }
   },
 }));

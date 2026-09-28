@@ -2,7 +2,7 @@ export const endpoints = {
   auth: {
     login: '/auth/login',
     me: '/auth/me',
-    register: '/auth/users/create',
+    register: '/auth/create',
     // Нет ручки логаута — выход обрабатывается на фронте, см. authStore.logout().
   },
 
@@ -29,6 +29,7 @@ export const endpoints = {
     objects: {
       list: '/bff/objects',
       byId: (id: number) => `/bff/objects/${id}`,
+      layers: (id: number) => `/bff/objects/${id}/layers`,
     },
     sensors: {
       list: '/bff/sensors',
@@ -39,6 +40,9 @@ export const endpoints = {
       byId: (id: string) => `/bff/predictions/${id}`,
       decisions: (id: string) => `/bff/predictions/${id}/decisions`,
     },
+    // Тревоги по факту (FactAlert) — срабатывания по показаниям датчиков, а
+    // не прогноз модели; источник окна «Журнал данных».
+    factAlerts: '/bff/fact-alerts',
     tasks: {
       list: '/bff/tasks',
       byId: (id: string) => `/bff/tasks/${id}`,
@@ -75,5 +79,23 @@ export const endpoints = {
       list: '/bff/ignored-ranges',
       byId: (id: string) => `/bff/ignored-ranges/${id}`,
     },
+    // График плановых работ (ППР, ТО): окна, в которые модель глушит тревоги.
+    workSchedule: {
+      list: '/bff/work-schedule',
+      byId: (workId: number) => `/bff/work-schedule/${workId}`,
+    },
+    // Окно «Логи»: какие объекты и датчики пользователю видны (readings:read —
+    // любые, инженеру — объекты его заявок в работе).
+    readingsScope: '/bff/readings/scope',
+    notifications: {
+      sendEmail: '/bff/notifications/email',
+    },
+  },
+
+  // Показания датчиков хранит воронка (tf-funnel), не BFF: nginx отдаёт её
+  // под /api/funnel/*, права воронка спрашивает у BFF (/readings/scope).
+  funnel: {
+    log: '/funnel/log',
+    stream: '/funnel/stream',
   },
 } as const;

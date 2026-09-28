@@ -452,6 +452,23 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
 
 ## Редизайн: светлая тема и grid-workspace
 
+> **Помечено устаревшим.** Раздел ниже описывает систему workspace так, как
+> она была сразу после этого редизайна. С тех пор в ветке `TF-Front-Design`
+> («Дизайн Даши») workspace переработан ещё раз поверх этого — добавлен
+> второй режим раскладки («внахлёст», `FreeCanvas`/`freeStore.ts`) в
+> дополнение к сегментной сетке (`GridCanvas`, `gridStore.ts` — идеи те же,
+> но сама сетка теперь строго 2×N сегментов вместо произвольных
+> строк/колонок), единая командная точка `stores/workspace/
+> workspaceCommands.ts` (`openWindow`/`closeWindow`/`setOverlap`/
+> `setSegments` — не дёргать `gridStore`/`freeStore` напрямую), drag-в-мусорку
+> для закрытия окна (`widgets/workspace/trashZone.ts`), и `route`/
+> `followsSelection` в `WindowDefinition` (карточки открываются по ссылке, а
+> не только по клику в сайдбаре — см. `core/registry/windowRegistry.ts`).
+> Раздел ниже не переписан под это целиком — читай его для истории решения
+> «матрица, не split-дерево» и «drag-оверрайд вместо только автоалгоритма»
+> (оба принципа пережили редизайн Даши), но за точным текущим API смотри в
+> сам код, начиная с `workspaceCommands.ts`.
+
 После того как все пять доменных фаз были готовы, интерфейс переделан по
 двум осям: цвет и механика окон. Прицел — не разработчики, а диспетчеры,
 многие немолодые и не привыкшие к софту с перетаскиванием/наложением окон,
@@ -587,6 +604,103 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
 этого нет, кроме как через drag того же раздела из сайдбара); бэкенд для
 раскладки (только `GridStorage`-граница под будущую замену).
 
+## Email-рассылка (`POST /bff/notifications/email`)
+
+Кнопка-конверт рядом с аватаром пользователя внизу шторки
+(`widgets/workspace/WorkspaceSidebar.tsx` → `.sidebar-user`) открывает
+модальное окно отправки письма — форма: получатели (чеклист пользователей
++ произвольные адреса), тема, текст, необязательные `ticketId`/`kind` для
+логов на стороне почтового сервиса.
+
+- **Это не окно workspace.** В отличие от всех остальных разделов, письмо
+  не регистрируется в `windowRegistry.ts` и не участвует в
+  grid/free-раскладке — это разовое модальное действие (compose-диалог), а
+  не панель, которую держат открытой и двигают по сетке. Гейтинг — свой,
+  локальный: `features/notifications/MailButton.tsx` сам делает
+  `usePermission('notifications', 'create')` и рендерит `null`, если права
+  нет (тот же принцип, что и у гейтинга окон, просто не через реестр —
+  реестр тут не подходит по смыслу).
+- **`entities/notification`** — `notificationRepository.sendEmail()`, один
+  метод, `POST /bff/notifications/email` (`endpoints.bff.notifications.sendEmail`
+  в `core/api/endpoints.ts` — как и остальные BFF-ручки, под `bff.*`; тут
+  ошибся в первой версии, считал маршрут отдельным от `/bff/`, поправлено).
+  Доставка асинхронная — `200` значит «принято в очередь», не «доставлено»;
+  UI это не переобещает нигде (заголовок результата — «Принято в обработку
+  N из M», не «отправлено»).
+- **Успех/неуспех — не по HTTP-коду, а по `results[]`.** `SendEmailResponse`
+  всегда `200`, даже если часть (или все) получателей не прошли —
+  `EmailSendStatus` на каждого отдельно (`sent`/`rateLimited`/
+  `userNotFound`/`noEmailOnFile`/`invalidEmail`/`failed`).
+  `notificationLabels.ts` даёт тон бейджа: `sent` — спокойный `low`,
+  `rateLimited`/`noEmailOnFile` — `med` (это не сбой, а ожидаемая причина
+  не отправить именно этому адресу — антиспам-лимит или незаполненный
+  профиль, не поломка), остальное — `high`.
+- **Лимиты `subject`(255)/`text`(20000) проверяются на фронте до отправки**
+  (`SUBJECT_MAX_LENGTH`/`TEXT_MAX_LENGTH` в `entities/notification/types.ts`)
+  — сервер обрезает молча без ошибки, поэтому кнопка «Отправить»
+  блокируется и показывается счётчик, а не отправляется урезанный текст
+  без предупреждения.
+- **Чеклист получателей греет предупреждённость, а не только валидацию.**
+  Пользователи без `email` в профиле показаны в списке, но чекбокс
+  задизейблен с пометкой «нет email» — вместо того чтобы дать выбрать и
+  затем получить `noEmailOnFile` в отчёте. `useUsers()` — тот же хук, что и
+  в `UsersPanel`, без дублирования.
+- **Заодно: `email: string | null` в профиле пользователя** —
+  `entities/user/types.ts` (`UserListItem`/`CreateUserRequest`/
+  `UpdateUserRequest`). Это отдельное поле от email учётки аутентификации
+  (`CurrentUser.email`/`RegisterRequest.email`, используется для входа) —
+  два разных email на пользователя, у BFF-профиля просто нет своего до
+  этой фичи. При создании новой учётки (`accountSource: 'new'` в
+  `useCreateUser.ts`) email для входа по умолчанию дублируется и в профиль
+  — спрашивать его дважды в одной форме избыточно; для «существующая
+  учётная запись» и в `UserEditForm.tsx` — отдельное поле «Email (для
+  уведомлений)», раз в этих сценариях email для входа фронт не спрашивает
+  вообще.
+- **CSS-ловушка, на которую стоит обратить внимание при следующей форме
+  с чекбоксами внутри `.form-card`:** `.form-card input { width: 100% }`
+  применяется и к `<input type="checkbox">` тоже — layout-box чекбокса
+  растягивается на всю ширину строки и отталкивает соседний `<label>`-текст
+  к правому краю, хотя сам чекбокс визуально остаётся маленьким (нативная
+  отрисовка виджета не следует за шириной box'а, а вот раскладка соседей —
+  следует). Фикс — `.recipient-item input[type="checkbox"] { width: auto;
+  flex: none; }` с более специфичным селектором. Также: `.recipient-item`
+  как класс на `<label>` сам по себе проигрывал специфичность правилу
+  `.form-card label` (класс+тег бьёт один класс) — сработало только после
+  `label.recipient-item { ... }` той же специфичности, но позже по
+  порядку в файле.
+
+### `shared/ui/Modal.tsx` — вынесен из email-формы, второй потребитель — редактирование объектов
+
+`SendEmailModal` был первой и единственной модалкой в приложении; когда
+понадобилась вторая (см. ниже), забивать `.modal-backdrop`/`.modal-header`/
+`useDismiss`-обвязку копипастой было бы неправильно — вынесен
+`shared/ui/Modal.tsx` (`title`, `onClose`, необязательный `footer`,
+`children`), `SendEmailModal.tsx` переписан на него первым, как проверка,
+что абстракция не потеряла ничего (включая ESC/клик-вне через `useDismiss`
+на `.modal`, ту же, что у `.user-menu-popover`).
+
+- **Кнопки формы внутри `children`, а не через `footer`, если форма и так
+  их уже рисует.** `SendEmailModal` выносит submit-кнопку в `footer`
+  специально (`form="send-email-form"` — HTML5-трюк, кнопка вне `<form>`,
+  но привязана к нему по id), чтобы она была прибита к низу модалки. Формы
+  редактирования сущностей (`*EditForm.tsx` — `ObjectEditForm`,
+  `UserEditForm` и т.д.) уже рисуют свои Отмена/Сохранить сами внутри
+  `.pd-actions`, внутри `<form>` — их не нужно перекраивать под
+  `footer`-слот, просто отдать форму целиком в `children`, `footer` у
+  `Modal` не указывать.
+- **`ObjectsPanel.tsx` — первое применение вне email.** Раньше клик
+  «Изменить» разворачивал `ObjectEditForm` инлайн под списком объектов
+  (нужно было скроллить вниз, чтобы её увидеть — особенно неудобно при
+  длинном списке или узком окне). Теперь — `<Modal title="Редактировать
+  объект" onClose={...}><div className="pd-body"><ObjectEditForm .../>
+  </div></Modal>`, форма создания (`canCreate`-блок) осталась как была,
+  инлайн под списком — это не то же самое неудобство (короткая статичная
+  форма, всегда в одном месте, не нужно её искать после клика на
+  случайную строку списка). Тот же приём стоит повторить для
+  `SensorsPanel`/`UsersPanel`/`GroupsPanel` при следующей правке — они
+  используют идентичный паттерн (`editingX ? <Form/> : canCreate &&
+  <CreateForm/>`), просто пока не были в задаче.
+
 ## Структура директорий
 
 ```text
@@ -675,9 +789,12 @@ src/
 │   ├── retrainJob/
 │   │   ├── types.ts
 │   │   └── retrainJobRepository.ts    # GET/POST /bff/retrain-jobs — только заявка, не запуск
-│   └── ignoredRange/
-│       ├── types.ts
-│       └── ignoredRangeRepository.ts  # GET/POST/DELETE /bff/ignored-ranges[/{id}]
+│   ├── ignoredRange/
+│   │   ├── types.ts
+│   │   └── ignoredRangeRepository.ts  # GET/POST/DELETE /bff/ignored-ranges[/{id}]
+│   └── notification/
+│       ├── types.ts                    # SendEmailRequest/Response, SUBJECT_MAX_LENGTH/TEXT_MAX_LENGTH
+│       └── notificationRepository.ts  # POST /bff/notifications/email
 │
 ├── stores/                  # Zustand — только client state
 │   ├── auth/authStore.ts
@@ -732,14 +849,19 @@ src/
 │   │   ├── EngineerTab.tsx               # профиль инженера (upsert) + список/создание бригад
 │   │   ├── peopleLabels.ts
 │   │   └── hooks/{useSchedule,useAssignedObjects,useEngineerProfile,useBrigades,usePresence}.ts
-│   └── modelSettings/
-│       ├── ModelSettingsWindow.tsx      # окно workspace: 4 вкладки
-│       ├── ModelVersionsTab.tsx
-│       ├── CoefficientsTab.tsx
-│       ├── RetrainJobsTab.tsx
-│       ├── IgnoredRangesTab.tsx
-│       ├── modelSettingsLabels.ts
-│       └── hooks/{useModelVersions,useCoefficients,useRetrainJobs,useIgnoredRanges}.ts
+│   ├── modelSettings/
+│   │   ├── ModelSettingsWindow.tsx      # окно workspace: 4 вкладки
+│   │   ├── ModelVersionsTab.tsx
+│   │   ├── CoefficientsTab.tsx
+│   │   ├── RetrainJobsTab.tsx
+│   │   ├── IgnoredRangesTab.tsx
+│   │   ├── modelSettingsLabels.ts
+│   │   └── hooks/{useModelVersions,useCoefficients,useRetrainJobs,useIgnoredRanges}.ts
+│   └── notifications/
+│       ├── MailButton.tsx               # не окно workspace — гейтит себя локально, открывает Modal
+│       ├── SendEmailModal.tsx
+│       ├── notificationLabels.ts
+│       └── hooks/useSendEmail.ts
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
 │   ├── workspace/{WorkspaceCanvas,WorkspaceSidebar,GridColumnDivider,GridRowDivider}
@@ -747,7 +869,7 @@ src/
 │
 ├── shared/                  # ничего не знает про backend-сущности
 │   ├── ui/{Button,Badge,ChipFilterGroup,ProgressBar,StatChip,
-│   │        Breadcrumb,Window,EmptyState}.tsx
+│   │        Breadcrumb,Window,EmptyState,Modal}.tsx  # Modal — поверх всех окон, вне grid/free-раскладки
 │   └── hooks/{useInterval,useClock,useDismiss}.ts
 │
 └── pages/                   # тонкие точки для роутов

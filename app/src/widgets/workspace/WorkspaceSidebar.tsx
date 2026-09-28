@@ -1,184 +1,342 @@
-import { PointerEvent, useRef, useState } from 'react';
+import { PointerEvent, useEffect, useRef, useState } from 'react';
 
-import { isWindowVisible, windowRegistry } from '../../core/registry/windowRegistry';
+import { BffErrorCode } from '../../core/errors/bffError';
+import { isWindowVisible, WindowDefinition, windowRegistry } from '../../core/registry/windowRegistry';
+import { SEGMENT_OPTIONS } from '../../core/workspace/gridConfig';
+import UserMenu from '../../features/auth/UserMenu';
+import MailButton from '../../features/notifications/MailButton';
+import { CurtainIcon, LogoMark, MinusCircleIcon, PlusCircleIcon, TrashIcon } from '../../shared/ui/icons';
 import { usePermissionsStore } from '../../stores/permissions/permissionsStore';
-import { useGridStore } from '../../stores/workspace/gridStore';
+import { useFreeStore } from '../../stores/workspace/freeStore';
+import { orderedWindowIds, segmentCount, useGridStore } from '../../stores/workspace/gridStore';
+import { useLayoutStore } from '../../stores/workspace/layoutStore';
+import {
+  closeWindow,
+  isWindowOpen,
+  openWindow,
+  restoreWindow,
+  setOverlap,
+  setSegments,
+  useOpenWindowIds,
+} from '../../stores/workspace/workspaceCommands';
+import {
+  cancelDrag,
+  DragSession,
+  finishFreeSidebarDrop,
+  finishGridDrop,
+  registerTrash,
+  startDragSession,
+  updateDragSession,
+} from './trashZone';
 
-// Ниже этого сдвига — обычный клик (тоггл), выше — перетаскивание
-// (оверрайд размещения). См. handlePointerUp.
-const DRAG_THRESHOLD = 6;
-
-// Курсор должен быть в крайних 25% ширины/высоты клетки, чтобы считаться
-// над её правым/нижним краем — иначе «мёртвая зона» в середине, без
-// однозначного намерения пользователя.
-const EDGE_ZONE = 0.25;
-
-type DropDirection = 'right' | 'bottom';
-
-interface DropTarget {
-  windowId: string;
-  direction: DropDirection;
-}
-
-interface DragState {
-  windowId: string;
-  title: string;
-  startX: number;
-  startY: number;
-  moved: boolean;
-}
-
-interface Ghost {
-  title: string;
-  x: number;
-  y: number;
-  droppable: boolean;
-}
-
-export default function WorkspaceSidebar() {
-  const grid = useGridStore(state => state.grid);
-  const placeWindowAuto = useGridStore(state => state.placeWindowAuto);
-  const placeWindowAt = useGridStore(state => state.placeWindowAt);
-  const removeWindow = useGridStore(state => state.removeWindow);
-  const permissions = usePermissionsStore(state => state.map);
-
-  const [ghost, setGhost] = useState<Ghost | null>(null);
-  const dragRef = useRef<DragState | null>(null);
-  const highlightRef = useRef<HTMLElement | null>(null);
-
-  function isPlaced(windowId: string): boolean {
-    return grid.cells.some(cell => cell.windowId === windowId);
+// Клик по разделу: закрытый — открыть; свёрнутый — развернуть; в свободном
+// режиме перекрытый — поднять наверх; открытый и видимый — закрыть.
+// Раздел-действие («Создать заявку») не закрывается кликом — у него нет
+// состояния «выбрано».
+function activateSection(definition: WindowDefinition) {
+  const { id } = definition;
+  if (!isWindowOpen(id)) {
+    openWindow(id);
+    return;
   }
 
-  function clearHighlight() {
-    if (highlightRef.current) {
-      highlightRef.current.classList.remove('drop-target-right', 'drop-target-bottom');
-      highlightRef.current = null;
+  const layout = useLayoutStore.getState();
+  if (layout.minimized.includes(id)) {
+    restoreWindow(id);
+    return;
+  }
+
+  if (layout.overlap) {
+    const { order } = useFreeStore.getState().free;
+    if (order[order.length - 1] !== id) {
+      useFreeStore.getState().focus(id);
+      return;
     }
   }
 
-  // Находит окно под курсором через data-window-id (см. shared/ui/Window.tsx)
-  // и определяет, в какую четверть клетки попал курсор — заодно подсвечивает
-  // целевой край как побочный эффект (без лишнего состояния в React).
-  function hitTest(clientX: number, clientY: number): DropTarget | null {
-    const el = document.elementFromPoint(clientX, clientY);
-    const winEl = el?.closest('[data-window-id]') as HTMLElement | null;
-
-    if (!winEl || !winEl.dataset.windowId) {
-      clearHighlight();
-      return null;
-    }
-
-    const rect = winEl.getBoundingClientRect();
-    const relX = (clientX - rect.left) / rect.width;
-    const relY = (clientY - rect.top) / rect.height;
-
-    let direction: DropDirection | null = null;
-    if (relX >= 1 - EDGE_ZONE) {
-      direction = 'right';
-    } else if (relY >= 1 - EDGE_ZONE) {
-      direction = 'bottom';
-    }
-
-    if (!direction) {
-      clearHighlight();
-      return null;
-    }
-
-    if (highlightRef.current !== winEl) {
-      clearHighlight();
-    }
-
-    winEl.classList.add(direction === 'right' ? 'drop-target-right' : 'drop-target-bottom');
-    winEl.classList.remove(direction === 'right' ? 'drop-target-bottom' : 'drop-target-right');
-    highlightRef.current = winEl;
-
-    return { windowId: winEl.dataset.windowId, direction };
+  if (!definition.action) {
+    closeWindow(id);
   }
+}
 
-  function handlePointerDown(event: PointerEvent<HTMLButtonElement>, windowId: string, title: string) {
-    dragRef.current = { windowId, title, startX: event.clientX, startY: event.clientY, moved: false };
+interface SectionButtonProps {
+  definition: WindowDefinition;
+  selected: boolean;
+  compact?: boolean;
+}
+
+// Раздел можно не только нажать, но и перетащить: в сетке — на ячейку
+// (окно встаёт туда, стоявшее закрывается), на свободном холсте — в точку,
+// где окно должно открыться.
+function SectionButton({ definition, selected, compact = false }: SectionButtonProps) {
+  const sessionRef = useRef<DragSession | null>(null);
+  const suppressClickRef = useRef(false);
+
+  function handleDown(event: PointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0) {
+      return;
+    }
+    sessionRef.current = startDragSession(definition.id, definition.title, 'sidebar', event.clientX, event.clientY);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
-  function handlePointerMove(event: PointerEvent<HTMLButtonElement>) {
-    const drag = dragRef.current;
-    if (!drag) {
-      return;
+  function handleMove(event: PointerEvent<HTMLButtonElement>) {
+    if (sessionRef.current) {
+      updateDragSession(sessionRef.current, event.clientX, event.clientY, true);
     }
-
-    const dx = event.clientX - drag.startX;
-    const dy = event.clientY - drag.startY;
-
-    if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) {
-      return;
-    }
-
-    drag.moved = true;
-
-    const target = hitTest(event.clientX, event.clientY);
-    setGhost({ title: drag.title, x: event.clientX, y: event.clientY, droppable: target !== null });
   }
 
-  function handlePointerUp(event: PointerEvent<HTMLButtonElement>, windowId: string) {
-    const drag = dragRef.current;
-    dragRef.current = null;
-
-    if (!drag || !drag.moved) {
-      // просто клик — тоггл, как у старого win-chip
-      if (isPlaced(windowId)) {
-        removeWindow(windowId);
-      } else {
-        placeWindowAuto(windowId);
-      }
-
-      setGhost(null);
-      clearHighlight();
+  function handleUp(event: PointerEvent<HTMLButtonElement>) {
+    const session = sessionRef.current;
+    sessionRef.current = null;
+    if (!session?.moved) {
       return;
     }
-
-    const target = hitTest(event.clientX, event.clientY);
-
-    if (target && target.windowId !== windowId) {
-      placeWindowAt(windowId, target.windowId, target.direction);
-    } else {
-      placeWindowAuto(windowId);
+    suppressClickRef.current = true;
+    if (useLayoutStore.getState().overlap) {
+      finishFreeSidebarDrop(session, event.clientX, event.clientY);
+    } else if (!finishGridDrop(session, event.clientX, event.clientY)) {
+      cancelDrag();
     }
+  }
 
-    setGhost(null);
-    clearHighlight();
+  function handleClick() {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    activateSection(definition);
+  }
+
+  const classes = ['side-btn', compact ? 'compact' : '', selected ? 'on' : ''].filter(Boolean).join(' ');
+
+  return (
+    <button
+      className={classes}
+      aria-pressed={definition.action ? undefined : selected}
+      onPointerDown={handleDown}
+      onPointerMove={handleMove}
+      onPointerUp={handleUp}
+      onPointerCancel={() => {
+        sessionRef.current = null;
+        cancelDrag();
+      }}
+      onClick={handleClick}
+    >
+      <span className="side-btn-text">{definition.title}</span>
+    </button>
+  );
+}
+
+// «⊖ N ⊕» — число ячеек сегментной сетки (4/6/8/10, §7.1). Уменьшить нельзя,
+// пока открытые окна не поместятся в меньшую сетку.
+function SegmentStepper({ hidden }: { hidden: boolean }) {
+  const grid = useGridStore(state => state.grid);
+  const count = segmentCount(grid);
+  const placed = orderedWindowIds(grid).length;
+
+  const index = SEGMENT_OPTIONS.findIndex(option => option === count);
+  const previous = index > 0 ? SEGMENT_OPTIONS[index - 1] : undefined;
+  const next = index >= 0 && index < SEGMENT_OPTIONS.length - 1 ? SEGMENT_OPTIONS[index + 1] : undefined;
+  const canDecrease = previous !== undefined && placed <= previous;
+
+  let decreaseTitle = 'Меньше ячеек';
+  if (previous === undefined) {
+    decreaseTitle = `Меньше ${count} ячеек нельзя`;
+  } else if (!canDecrease) {
+    decreaseTitle = `Закройте окна: в ${previous} ячеек поместятся не все`;
   }
 
   return (
-    <nav className="sidebar">
-      <span className="sidebar-label">Разделы</span>
+    <div className={`stepper ${hidden ? 'is-hidden' : ''}`} aria-hidden={hidden}>
+      <button
+        className="stepper-btn"
+        disabled={!canDecrease}
+        onClick={() => previous !== undefined && setSegments(previous)}
+        title={decreaseTitle}
+        aria-label="Меньше ячеек"
+        tabIndex={hidden ? -1 : undefined}
+      >
+        <MinusCircleIcon />
+      </button>
+      <span className="stepper-value" aria-live="polite">
+        {count}
+      </span>
+      <button
+        className="stepper-btn"
+        disabled={next === undefined}
+        onClick={() => next !== undefined && setSegments(next)}
+        title={next === undefined ? `Больше ${count} ячеек нельзя` : 'Больше ячеек'}
+        aria-label="Больше ячеек"
+        tabIndex={hidden ? -1 : undefined}
+      >
+        <PlusCircleIcon />
+      </button>
+    </div>
+  );
+}
 
-      {windowRegistry.map(definition => {
-        if (!isWindowVisible(definition, permissions)) {
-          return null;
-        }
+function TrashZone() {
+  const ref = useRef<HTMLDivElement>(null);
+  const drag = useLayoutStore(state => state.drag);
 
-        return (
-          <button
-            key={definition.id}
-            className={`sidebar-item ${isPlaced(definition.id) ? 'on' : ''}`}
-            onPointerDown={event => handlePointerDown(event, definition.id, definition.title)}
-            onPointerMove={handlePointerMove}
-            onPointerUp={event => handlePointerUp(event, definition.id)}
-          >
-            {definition.title}
-          </button>
-        );
-      })}
+  useEffect(() => {
+    registerTrash(ref.current);
+    return () => registerTrash(null);
+  }, []);
 
-      {ghost && (
-        <div
-          className={`sidebar-drag-ghost ${ghost.droppable ? 'droppable' : ''}`}
-          style={{ left: ghost.x, top: ghost.y }}
+  const armed = drag?.source === 'window';
+  const over = armed && drag.overTrash;
+
+  return (
+    <div
+      ref={ref}
+      className={['trash', armed ? 'armed' : '', over ? 'over' : ''].filter(Boolean).join(' ')}
+      title="Перетащите окно сюда, чтобы закрыть его"
+    >
+      <TrashIcon className="trash-icon" />
+      {!over && <span className="trash-text">Удалить окно</span>}
+    </div>
+  );
+}
+
+// Почему прав нет: BFF отвечает 403 с кодом, текст ошибки у него английский.
+function permissionsErrorText(code: BffErrorCode | null): string {
+  switch (code) {
+    case 'user_not_provisioned':
+      return 'Учётная запись ещё не заведена в системе, поэтому разделов нет. Её добавляет администратор.';
+    case 'user_inactive':
+      return 'Учётная запись отключена. Обратитесь к администратору.';
+    default:
+      return 'Не удалось загрузить права, поэтому разделы скрыты.';
+  }
+}
+
+export default function WorkspaceSidebar() {
+  const collapsed = useLayoutStore(state => state.sidebarCollapsed);
+  const toggleSidebar = useLayoutStore(state => state.toggleSidebar);
+  const overlap = useLayoutStore(state => state.overlap);
+  const hint = useLayoutStore(state => state.hint);
+  const setHint = useLayoutStore(state => state.setHint);
+  const permissions = usePermissionsStore(state => state.map);
+  const permissionsStatus = usePermissionsStore(state => state.status);
+  const permissionsError = usePermissionsStore(state => state.errorCode);
+  const reloadPermissions = usePermissionsStore(state => state.load);
+  const openIds = useOpenWindowIds();
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  useEffect(() => {
+    if (!hint) {
+      return;
+    }
+    const timer = window.setTimeout(() => setHint(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [hint, setHint]);
+
+  if (collapsed) {
+    return (
+      <aside className="sidebar collapsed">
+        <button className="sidebar-orb" onClick={toggleSidebar} title="Развернуть панель" aria-label="Развернуть панель" />
+      </aside>
+    );
+  }
+
+  const visible = windowRegistry.filter(
+    definition => definition.section !== 'detail' && isWindowVisible(definition, permissions)
+  );
+  const primary = visible.filter(definition => definition.section === 'primary');
+  const more = visible.filter(definition => definition.section === 'more');
+
+  function isSelected(definition: WindowDefinition): boolean {
+    return !definition.action && openIds.includes(definition.id);
+  }
+
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-top">
+        <LogoMark className="sidebar-logo" />
+        <button className="sidebar-curtain" onClick={toggleSidebar} title="Свернуть панель" aria-label="Свернуть панель">
+          <CurtainIcon />
+        </button>
+      </div>
+
+      <div className="sidebar-scroll">
+        <nav className="sidebar-nav" aria-label="Разделы">
+          {primary.map(definition => (
+            <SectionButton key={definition.id} definition={definition} selected={isSelected(definition)} />
+          ))}
+        </nav>
+
+        {visible.length === 0 && permissionsStatus === 'loading' && (
+          <p className="sidebar-empty" role="status">
+            Загружаем разделы…
+          </p>
+        )}
+
+        {visible.length === 0 && permissionsStatus === 'ready' && (
+          <p className="sidebar-empty" role="status">
+            Нет доступных разделов: у учётной записи пока нет прав. Их выдаёт администратор.
+          </p>
+        )}
+
+        {visible.length === 0 && permissionsStatus === 'error' && (
+          <div className="sidebar-empty" role="alert">
+            <p>{permissionsErrorText(permissionsError)}</p>
+            <button className="sidebar-empty-retry" onClick={() => reloadPermissions()}>
+              Повторить
+            </button>
+          </div>
+        )}
+
+        {more.length > 0 && (
+          <div className="sidebar-more">
+            <button className="sidebar-more-toggle" aria-expanded={moreOpen} onClick={() => setMoreOpen(value => !value)}>
+              Ещё разделы <span aria-hidden="true">{moreOpen ? '▴' : '▾'}</span>
+            </button>
+
+            {moreOpen && (
+              <div className="sidebar-nav">
+                {more.map(definition => (
+                  <SectionButton key={definition.id} definition={definition} selected={isSelected(definition)} compact />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="sidebar-bottom">
+        <span className="overlap-label" id="overlap-label">
+          Располагать окна внахлест?
+        </span>
+
+        <button
+          className={`overlap-switch ${overlap ? 'yes' : 'no'}`}
+          role="switch"
+          aria-checked={overlap}
+          aria-labelledby="overlap-label"
+          onClick={() => setOverlap(!overlap)}
         >
-          {ghost.title}
+          <span className="overlap-knob">{overlap ? 'Да' : 'Нет'}</span>
+        </button>
+
+        <SegmentStepper hidden={overlap} />
+
+        <div className="sidebar-gap">
+          {hint && (
+            <div className="sidebar-hint" role="status">
+              {hint}
+            </div>
+          )}
         </div>
-      )}
-    </nav>
+
+        <TrashZone />
+
+        <div className="sidebar-user">
+          <MailButton />
+          <UserMenu />
+        </div>
+      </div>
+    </aside>
   );
 }

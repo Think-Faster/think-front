@@ -1,19 +1,14 @@
 import { ChangeEvent, FormEvent, useState } from 'react';
 
 import { usePermission } from '../../core/permissions/permissionService';
-import { MonitoredObject, ObjectStatus } from '../../entities/object/types';
+import { MonitoredObject } from '../../entities/object/types';
 import Button from '../../shared/ui/Button';
 import EmptyState from '../../shared/ui/EmptyState';
+import Modal from '../../shared/ui/Modal';
 import { useCreateObject } from './hooks/useCreateObject';
 import { useObjects } from './hooks/useObjects';
 import ObjectEditForm from './ObjectEditForm';
-
-const statusLabels: Record<ObjectStatus, string> = {
-  normal: 'норма',
-  watch: 'наблюдение',
-  alarm: 'тревога',
-  offline: 'офлайн',
-};
+import { objectStatusLabels } from './objectLabels';
 
 const emptyForm = {
   id: '',
@@ -71,7 +66,7 @@ export default function ObjectsPanel() {
           <div>
             <div>{object.name}</div>
             <div className="d">
-              #{object.id} · {object.kind} · {statusLabels[object.status] ?? object.status}
+              #{object.id} · {object.kind} · {objectStatusLabels[object.status] ?? object.status}
             </div>
           </div>
 
@@ -83,80 +78,80 @@ export default function ObjectsPanel() {
         </div>
       ))}
 
-      {editingObject ? (
+      {canCreate && (
         <>
-          <p className="pd-section-title">Редактировать объект</p>
+          <p className="pd-section-title">Добавить объект</p>
 
-          <ObjectEditForm
-            object={editingObject}
-            onCancel={() => setEditingObject(null)}
-            onSaved={() => {
-              setEditingObject(null);
-              reload();
-            }}
-          />
+          <form className="login-form" onSubmit={handleSubmit}>
+            <label>
+              ID (внешний, из справочника мониторинга)
+              <input value={form.id} onChange={setField('id')} type="number" disabled={creating} required />
+            </label>
+
+            <label>
+              Уровень
+              <input value={form.level} onChange={setField('level')} type="number" disabled={creating} required />
+            </label>
+
+            <label>
+              Родительский объект
+              <select value={form.parentId} onChange={setField('parentId')} disabled={creating}>
+                <option value="">— нет —</option>
+                {objects.map(object => (
+                  <option key={object.id} value={object.id}>
+                    {object.name} (#{object.id})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Тип
+              <input value={form.kind} onChange={setField('kind')} disabled={creating} required />
+            </label>
+
+            <label>
+              Название
+              <input value={form.name} onChange={setField('name')} disabled={creating} required />
+            </label>
+
+            <label>
+              Адрес
+              <input value={form.address} onChange={setField('address')} disabled={creating} />
+            </label>
+
+            <label>
+              Геометрия (GeoJSON)
+              <textarea
+                value={form.geometryGeoJson}
+                onChange={setField('geometryGeoJson')}
+                disabled={creating}
+                rows={3}
+              />
+            </label>
+
+            {createError && <div className="login-error">{createError}</div>}
+
+            <Button type="submit" variant="primary" disabled={creating}>
+              {creating ? 'Создание…' : 'Добавить объект'}
+            </Button>
+          </form>
         </>
-      ) : (
-        canCreate && (
-          <>
-            <p className="pd-section-title">Добавить объект</p>
+      )}
 
-            <form className="login-form" onSubmit={handleSubmit}>
-              <label>
-                ID (внешний, из справочника мониторинга)
-                <input value={form.id} onChange={setField('id')} type="number" disabled={creating} required />
-              </label>
-
-              <label>
-                Уровень
-                <input value={form.level} onChange={setField('level')} type="number" disabled={creating} required />
-              </label>
-
-              <label>
-                Родительский объект
-                <select value={form.parentId} onChange={setField('parentId')} disabled={creating}>
-                  <option value="">— нет —</option>
-                  {objects.map(object => (
-                    <option key={object.id} value={object.id}>
-                      {object.name} (#{object.id})
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Тип
-                <input value={form.kind} onChange={setField('kind')} disabled={creating} required />
-              </label>
-
-              <label>
-                Название
-                <input value={form.name} onChange={setField('name')} disabled={creating} required />
-              </label>
-
-              <label>
-                Адрес
-                <input value={form.address} onChange={setField('address')} disabled={creating} />
-              </label>
-
-              <label>
-                Геометрия (GeoJSON)
-                <textarea
-                  value={form.geometryGeoJson}
-                  onChange={setField('geometryGeoJson')}
-                  disabled={creating}
-                  rows={3}
-                />
-              </label>
-
-              {createError && <div className="login-error">{createError}</div>}
-
-              <Button type="submit" variant="primary" disabled={creating}>
-                {creating ? 'Создание…' : 'Добавить объект'}
-              </Button>
-            </form>
-          </>
-        )
+      {editingObject && (
+        <Modal title="Редактировать объект" onClose={() => setEditingObject(null)}>
+          <div className="pd-body">
+            <ObjectEditForm
+              object={editingObject}
+              onCancel={() => setEditingObject(null)}
+              onSaved={() => {
+                setEditingObject(null);
+                reload();
+              }}
+            />
+          </div>
+        </Modal>
       )}
     </div>
   );

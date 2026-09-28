@@ -1,9 +1,9 @@
 import { apiClient } from '../../core/api/client';
 import { endpoints } from '../../core/api/endpoints';
-import { PagedResult } from '../../core/api/types';
+import { PagedResult, PageRequest } from '../../core/api/types';
 import { ConfirmIncidentRequest, Incident } from './types';
 
-export interface IncidentFilter {
+export interface IncidentFilter extends PageRequest {
   objectId?: number;
 }
 

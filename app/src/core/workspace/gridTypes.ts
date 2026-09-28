@@ -1,11 +1,12 @@
 // Бампается при несовместимом изменении формы GridState — gridStorage
 // отбрасывает сохранённое состояние с другой версией вместо падения на
-// JSON, не совпадающем по форме.
-export const GRID_STATE_VERSION = 1;
+// JSON, не совпадающем по форме. v2: размер трека — доля (fr), а не px;
+// сетка фиксированная, segments = columns × rows.
+export const GRID_STATE_VERSION = 2;
 
 export interface GridTrack {
   id: string;
-  size: number; // px
+  size: number; // fr — доля свободного места
 }
 
 export interface GridCell {

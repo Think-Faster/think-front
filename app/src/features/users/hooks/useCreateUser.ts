@@ -25,6 +25,9 @@ export type CreateUserInput =
   | (ProfileFields & {
       accountSource: 'existing';
       authUserId: string;
+      // Email профиля BFF — отдельный от учётки, у существующей учётки его
+      // ещё нет нигде, поэтому здесь его нужно спросить явно.
+      email: string;
     });
 
 export function useCreateUser() {
@@ -58,12 +61,15 @@ export function useCreateUser() {
     }
 
     try {
-      // Шаг 2: заводим профиль в BFF, привязывая его к учётке.
+      // Шаг 2: заводим профиль в BFF, привязывая его к учётке. Для новой
+      // учётки email профиля по умолчанию — тот же, что и email для входа
+      // (спрашивать его дважды в одной форме избыточно).
       const user = await userRepository.create({
         authUserId,
         lastName: input.lastName,
         firstName: input.firstName,
         middleName: input.middleName || null,
+        email: input.email || null,
       });
 
       return user;

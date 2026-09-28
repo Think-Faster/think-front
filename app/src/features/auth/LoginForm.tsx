@@ -64,7 +64,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
       {error && <div className="login-error">{error}</div>}
 
       <Button type="submit" variant="primary" className="login-button" disabled={loading}>
-        {loading ? 'Вход…' : 'Войти'}
+        {loading ? 'Вход…' : 'Вход'}
       </Button>
     </form>
   );

@@ -11,6 +11,11 @@ export interface UserListItem {
   firstName: string;
   middleName: string | null;
   isActive: boolean;
+  // Email профиля в BFF — отдельная сущность от email учётки аутентификации
+  // (CurrentUser.email/RegisterRequest.email). Нужен для отправки писем
+  // через userIds (entities/notification) — без него получатель получит
+  // noEmailOnFile.
+  email: string | null;
 }
 
 export interface User extends UserListItem {
@@ -23,6 +28,7 @@ export interface CreateUserRequest {
   firstName: string;
   middleName?: string | null;
   groupIds?: string[];
+  email?: string | null;
 }
 
 // groupIds сюда не входит — состав групп меняется отдельными эндпоинтами
@@ -33,4 +39,5 @@ export interface UpdateUserRequest {
   middleName?: string | null;
   isActive: boolean;
   authUserId: string;
+  email?: string | null;
 }

@@ -1,8 +1,18 @@
 // Временные, подобранные на глаз значения — если понадобится другая сетка
-// (больше колонок, другие дефолтные размеры), менять только здесь.
-export const MAX_AUTO_COLUMNS = 3;
-export const DEFAULT_COLUMN_SIZE = 360; // px
-export const DEFAULT_ROW_SIZE = 320; // px
+// или другие размеры окон, менять только здесь.
+
+// Сегментный режим (доменный документ §7.1): 4, 6, 8 или 10 ячеек, по
+// умолчанию 6. Ячеек всегда две строки, колонок — segments / 2.
+export const SEGMENT_OPTIONS = [4, 6, 8, 10] as const;
+export const DEFAULT_SEGMENTS = 6;
+export const GRID_ROWS = 2;
 export const MIN_TRACK_SIZE = 160; // px — нижний предел при перетаскивании разделителя
-export const DIVIDER_SIZE = 6; // px — ширина/высота перетаскиваемого разделителя между треками
-export const ADD_TRACK_SIZE = 32; // px — крайняя полоса с кнопкой «+» (добавить колонку/строку)
+export const DIVIDER_SIZE = 8; // px — ширина/высота перетаскиваемого разделителя между треками
+
+// Свободный режим («внахлёст»): размер нового окна и шаг каскада.
+export const FREE_WINDOW_WIDTH = 440;
+export const FREE_WINDOW_HEIGHT = 380;
+export const FREE_MIN_WIDTH = 260;
+export const FREE_MIN_HEIGHT = 160;
+export const FREE_CASCADE_STEP = 32;
+export const FREE_CASCADE_LIMIT = 8;
