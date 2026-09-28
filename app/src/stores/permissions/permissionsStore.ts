@@ -12,6 +12,8 @@ export type PermissionsStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 interface PermissionsState {
   map: PermissionsMap;
+  // Коды групп пользователя (прямые и родительские) — роли вроде engineers.
+  groups: string[];
   status: PermissionsStatus;
   // Код ошибки BFF при status = 'error': 403 бывает трёх видов
   // (user_not_provisioned / user_inactive / permission_denied), шторка
@@ -29,6 +31,7 @@ interface PermissionsState {
 // можно по status — шторка пишет об этом, а не остаётся пустой.
 export const usePermissionsStore = create<PermissionsState>(set => ({
   map: {},
+  groups: [],
   status: 'idle',
   errorCode: null,
 
@@ -36,10 +39,10 @@ export const usePermissionsStore = create<PermissionsState>(set => ({
     set({ status: 'loading', errorCode: null });
     try {
       const response = await permissionsApi.getMyPermissions();
-      set({ map: response.permissions ?? {}, status: 'ready' });
+      set({ map: response.permissions ?? {}, groups: response.groups ?? [], status: 'ready' });
     } catch (error) {
       console.warn('GET /permissions/me недоступна — доступ к разделам с правами скрыт', error);
-      set({ map: {}, status: 'error', errorCode: parseBffError(error).code });
+      set({ map: {}, groups: [], status: 'error', errorCode: parseBffError(error).code });
     }
   },
 }));

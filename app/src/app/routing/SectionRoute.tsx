@@ -16,6 +16,7 @@ let landed = false;
 // рисуется как есть: окна и шторка сами скрывают то, на что прав нет.
 export default function SectionRoute({ sectionId }: { sectionId: string }) {
   const permissions = usePermissionsStore(state => state.map);
+  const groups = usePermissionsStore(state => state.groups);
   const status = usePermissionsStore(state => state.status);
   const location = useLocation();
   const [firstLanding] = useState(() => !landed);
@@ -29,9 +30,10 @@ export default function SectionRoute({ sectionId }: { sectionId: string }) {
     return <Outlet />;
   }
 
-  const visible = visibleSections(permissions);
+  const access = { permissions, groups };
+  const visible = visibleSections(access);
 
-  if (!section.isVisible(permissions)) {
+  if (!section.isVisible(access)) {
     const fallback = visible[0];
     return fallback ? <Navigate to={fallback.path} replace /> : <Outlet />;
   }
