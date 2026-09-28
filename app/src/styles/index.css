@@ -28,6 +28,11 @@
 
   --sidebar-width: 240px;
 
+  /* Слои: шторка поверх холста; окно, которое тянут, — поверх шторки,
+     чтобы его было видно над мусоркой. */
+  --z-sidebar: 1000;
+  --z-window-dragged: 1100;
+
   --amber: #b8791f;
   --amber-dim: rgba(184, 121, 31, 0.1);
 
@@ -571,7 +576,7 @@ header {
   bottom: 0;
   left: 0;
 
-  z-index: 1000;
+  z-index: var(--z-sidebar);
 
   width: var(--sidebar-width);
 
@@ -704,6 +709,16 @@ header {
 
   scrollbar-width: thin;
   scrollbar-color: rgba(242, 243, 247, 0.35) transparent;
+}
+
+/* Пока тянут окно, цель в шторке одна — мусорка; разделы отходят на
+   второй план. */
+.sidebar-scroll {
+  transition: opacity 0.15s;
+}
+
+.sidebar.window-drag .sidebar-scroll {
+  opacity: 0.35;
 }
 
 .sidebar-nav {
@@ -1537,6 +1552,35 @@ header {
 
 .win.dragging {
   opacity: 0.85;
+}
+
+/* Свободное окно над мусоркой сжимается в миниатюру по центру курсора —
+   видно, что оно уходит в мусорку. Точку захвата и масштаб задаёт
+   FreeCanvas (--grab-x, --grab-y, --trash-scale). */
+.win.win-free.dragging {
+  transform-origin: var(--grab-x) var(--grab-y);
+
+  transition:
+    transform 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.win.win-free.to-trash {
+  opacity: 0.8;
+
+  transform:
+    translate(
+      calc(var(--trash-scale) * (var(--grab-x) - 50%)),
+      calc(var(--trash-scale) * (var(--grab-y) - 50%))
+    )
+    scale(var(--trash-scale));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .win.win-free.dragging,
+  .sidebar-scroll {
+    transition: none;
+  }
 }
 
 .win.to-trash {
