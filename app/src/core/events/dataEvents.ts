@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 
 // Событие «данные изменились» между окнами: окно создания заявки сообщает,
-// «Дневник диспетчера» и «История объектов» перечитывают свои списки.
-export type DataEvent = 'task.created';
+// «Дневник диспетчера» и «История объектов» перечитывают свои списки;
+// решение по прогнозу перечитывает «Журнал прогнозов».
+export type DataEvent = 'task.created' | 'prediction.updated';
 
 type Listener = () => void;
 

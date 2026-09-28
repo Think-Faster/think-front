@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+import { useDataEvent } from '../../core/events/dataEvents';
 import { predictionRepository } from '../../entities/prediction/predictionRepository';
 import { PredictionListItem, PredictionStatus } from '../../entities/prediction/types';
 import { usePagedList } from '../../shared/hooks/usePagedList';
@@ -26,6 +27,8 @@ export default function PredictionQueueWindow() {
       predictionRepository.getList({ ...query, status: status === 'all' ? undefined : status, objectId }),
     'Не удалось загрузить прогнозы.'
   );
+
+  useDataEvent('prediction.updated', list.reload);
 
   function objectName(id: number): string {
     const object = objects.find(item => item.id === id);

@@ -52,6 +52,10 @@ export const endpoints = {
       assignments: (id: string) => `/bff/tasks/${id}/assignments`,
       reports: (id: string) => `/bff/tasks/${id}/reports`,
       returns: (id: string) => `/bff/tasks/${id}/returns`,
+      start: (id: string) => `/bff/tasks/${id}/start`,
+      close: (id: string) => `/bff/tasks/${id}/close`,
+      cancel: (id: string) => `/bff/tasks/${id}/cancel`,
+      assignees: '/bff/tasks/assignees',
     },
     incidents: {
       list: '/bff/incidents',

@@ -1,8 +1,9 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { usePermission } from '../../core/permissions/permissionService';
-import { ReturnTargetType, WorkTaskStatus } from '../../entities/task/types';
+import { taskRepository } from '../../entities/task/taskRepository';
+import { ReturnTargetType, TaskAssignee, WorkTaskStatus } from '../../entities/task/types';
 import Badge from '../../shared/ui/Badge';
 import Button from '../../shared/ui/Button';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
@@ -15,9 +16,12 @@ import { usePredictions } from '../predictions/hooks/usePredictions';
 import { useUsers } from '../users/hooks/useUsers';
 import { useTask } from './hooks/useTask';
 import {
+  assignmentStatusLabel,
   isTaskActive,
   returnTargetTypeLabels,
   returnTargetTypeOptions,
+  taskResultLabel,
+  taskResultOptions,
   taskSourceTypeLabels,
   taskStatusLabels,
   taskStatusTone,
@@ -28,7 +32,6 @@ const engineerOnSite: WorkTaskStatus[] = ['assigned', 'engineerWorking', 'return
 export default function TaskDetailWindow() {
   const params = useParams<{ id: string }>();
   const { objects } = useObjects();
-  const { predictions } = usePredictions();
   const { users } = useUsers();
 
   const {
@@ -43,7 +46,21 @@ export default function TaskDetailWindow() {
     addAssignment,
     addReport,
     addReturn,
+    start,
+    close,
+    cancel,
   } = useTask(params.id);
+
+  // Основанием заявки может быть только прогноз по её объекту.
+  const { predictions } = usePredictions(task?.objectId);
+  // Кого назначить и кому вернуть — участники групп engineers/dispatchers (BFF /tasks/assignees).
+  const [engineers, setEngineers] = useState<TaskAssignee[]>([]);
+  const [dispatchers, setDispatchers] = useState<TaskAssignee[]>([]);
+
+  useEffect(() => {
+    taskRepository.getAssignees('engineers').then(setEngineers).catch(() => setEngineers([]));
+    taskRepository.getAssignees('dispatchers').then(setDispatchers).catch(() => setDispatchers([]));
+  }, []);
 
   const canAct = usePermission('tasks', 'update');
   const canReadings = usePermission('readings', 'read');
@@ -66,8 +83,8 @@ export default function TaskDetailWindow() {
   const [returnUserId, setReturnUserId] = useState('');
   const [returnComment, setReturnComment] = useState('');
 
-  if (loading) {
-    return null;
+  if (loading && !task) {
+    return <EmptyState>Загрузка…</EmptyState>;
   }
 
   if (error) {
@@ -83,6 +100,15 @@ export default function TaskDetailWindow() {
   const canEdit = canAct && active;
   // Инженеру показания объекта открыты, пока он на заявке (BFF /readings/scope).
   const canLogs = canReadings || engineerOnSite.includes(task.status);
+  // Переходы, которые BFF примет из текущего статуса (иначе 409 invalid_status).
+  const hasEngineer = task.assignments.some(item => item.status === 'assigned');
+  const canStart = canAct && (task.status === 'assigned' || task.status === 'returnedToWork') && hasEngineer;
+  const canReport = canAct && engineerOnSite.includes(task.status) && hasEngineer;
+  const canClose = canAct && task.status === 'completed';
+  const canCancel = canAct && (task.status === 'new' || active);
+  const canReturn = canAct && (active || task.status === 'completed');
+  const attachedIds = task.predictions.filter(item => !item.detachedAt).map(item => item.predictionId);
+  const attachable = predictions.filter(prediction => !attachedIds.includes(prediction.id));
 
   function openLogs() {
     setSelectedId(task!.objectId);
@@ -90,7 +116,9 @@ export default function TaskDetailWindow() {
   }
 
   function userName(userId: string): string {
-    const user = users.find(item => item.id === userId);
+    const user = users.find(item => item.id === userId)
+      ?? engineers.find(item => item.id === userId)
+      ?? dispatchers.find(item => item.id === userId);
     return user ? `${user.lastName} ${user.firstName}` : userId;
   }
 
@@ -144,8 +172,17 @@ export default function TaskDetailWindow() {
     }
   }
 
+  function handleCancel() {
+    if (window.confirm(`Отменить заявку №${task!.number}? Взятые по ней прогнозы закроются.`)) {
+      cancel();
+    }
+  }
+
   async function handleReturn(event: FormEvent) {
     event.preventDefault();
+    if (returnTarget === 'dispatcher' && !returnUserId) {
+      return;
+    }
 
     const ok = await addReturn({
       targetType: returnTarget,
@@ -188,11 +225,31 @@ export default function TaskDetailWindow() {
 
       {actionError && <div className="login-error">{actionError}</div>}
 
-      {task.status === 'new' && canAct && (
+      {(canCancel || canStart || canClose || (task.status === 'new' && canAct)) && (
         <div className="pd-actions">
-          <Button variant="primary" disabled={acting} onClick={() => take()}>
-            Взять в работу
-          </Button>
+          {canCancel && (
+            <Button disabled={acting} onClick={handleCancel}>
+              Отменить заявку
+            </Button>
+          )}
+
+          {task.status === 'new' && canAct && (
+            <Button variant="primary" disabled={acting} onClick={() => take()}>
+              Взять в работу
+            </Button>
+          )}
+
+          {canStart && (
+            <Button variant="primary" disabled={acting} onClick={() => start()}>
+              Начать работу
+            </Button>
+          )}
+
+          {canClose && (
+            <Button variant="primary" disabled={acting} onClick={() => close()}>
+              Принять отчёт и закрыть
+            </Button>
+          )}
         </div>
       )}
 
@@ -229,7 +286,7 @@ export default function TaskDetailWindow() {
             Прогноз
             <select value={predictionId} onChange={event => setPredictionId(event.target.value)}>
               <option value="">— выбрать —</option>
-              {predictions.map(prediction => (
+              {attachable.map(prediction => (
                 <option key={prediction.id} value={prediction.id}>
                   {prediction.topic}
                 </option>
@@ -263,7 +320,7 @@ export default function TaskDetailWindow() {
             {assignment.comment ? ` · ${assignment.comment}` : ''}
           </span>
 
-          <span className="d">{assignment.status}</span>
+          <span className="d">{assignmentStatusLabel(assignment.status)}</span>
         </div>
       ))}
 
@@ -273,7 +330,7 @@ export default function TaskDetailWindow() {
             Инженер
             <select value={engineerId} onChange={event => setEngineerId(event.target.value)}>
               <option value="">— выбрать —</option>
-              {users.map(user => (
+              {engineers.map(user => (
                 <option key={user.id} value={user.id}>
                   {user.lastName} {user.firstName}
                 </option>
@@ -299,7 +356,7 @@ export default function TaskDetailWindow() {
       {task.reports.map(report => (
         <div className="hist-item" key={report.id}>
           <span>
-            {report.resultCode}
+            {taskResultLabel(report.resultCode)}
             {report.worksDone ? ` · ${report.worksDone}` : ''}
           </span>
 
@@ -307,11 +364,18 @@ export default function TaskDetailWindow() {
         </div>
       ))}
 
-      {canEdit && (
+      {canReport && (
         <form className="login-form" onSubmit={handleReport}>
           <label>
-            Код результата
-            <input value={resultCode} onChange={event => setResultCode(event.target.value)} required />
+            Результат
+            <select value={resultCode} onChange={event => setResultCode(event.target.value)} required>
+              <option value="">— выбрать —</option>
+              {taskResultOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label>
@@ -350,7 +414,7 @@ export default function TaskDetailWindow() {
         </div>
       ))}
 
-      {canEdit && (
+      {canReturn && (
         <form className="login-form" onSubmit={handleReturn}>
           <label>
             Куда вернуть
@@ -360,9 +424,9 @@ export default function TaskDetailWindow() {
           {returnTarget === 'dispatcher' && (
             <label>
               Диспетчер
-              <select value={returnUserId} onChange={event => setReturnUserId(event.target.value)}>
+              <select value={returnUserId} onChange={event => setReturnUserId(event.target.value)} required>
                 <option value="">— выбрать —</option>
-                {users.map(user => (
+                {dispatchers.map(user => (
                   <option key={user.id} value={user.id}>
                     {user.lastName} {user.firstName}
                   </option>
@@ -376,7 +440,7 @@ export default function TaskDetailWindow() {
             <input value={returnComment} onChange={event => setReturnComment(event.target.value)} />
           </label>
 
-          <Button type="submit" disabled={acting}>
+          <Button type="submit" disabled={acting || (returnTarget === 'dispatcher' && !returnUserId)}>
             Вернуть заявку
           </Button>
         </form>

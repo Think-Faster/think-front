@@ -116,6 +116,23 @@ export interface CreateTaskReportRequest {
   comment?: string | null;
 }
 
+// Исполнители: role=engineers — кого назначить, dispatchers — кому вернуть.
+// Участники группы с подгруппами; прав users/groups не требует.
+export type AssigneeRole = 'engineers' | 'dispatchers';
+
+export interface TaskAssignee {
+  id: string;
+  lastName: string;
+  firstName: string;
+  middleName: string | null;
+}
+
+// Переходы без данных: начать работу, закрыть, отменить. Комментарий
+// дописывается к заявке.
+export interface TaskTransitionRequest {
+  comment?: string | null;
+}
+
 export interface CreateTaskReturnRequest {
   targetType: ReturnTargetType;
   targetUserId?: string | null;
