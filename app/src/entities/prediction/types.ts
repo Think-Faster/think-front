@@ -4,7 +4,23 @@ export type PredictionType =
   | 'flood'
   | 'equipmentFailure'
   | 'sensorFailure'
-  | 'intrusion';
+  | 'intrusion'
+  // только по факту (FactAlert): прогнозов этих типов нет, ML/INTEGRATION.md §13.11
+  | 'temperature'
+  | 'blind';
+
+// Типы, которые модель прогнозирует: коэффициенты, фильтры прогнозов.
+export const FORECAST_TYPES: PredictionType[] = [
+  'fire',
+  'gas',
+  'flood',
+  'equipmentFailure',
+  'sensorFailure',
+  'intrusion',
+];
+
+// Авария даёт объекту статус «тревога», инцидент — нет (§13.11).
+export type AlertGroup = 'accident' | 'incident';
 
 export type PredictionStatus = 'new' | 'inReview' | 'taken' | 'rejected' | 'muted' | 'closed';
 
