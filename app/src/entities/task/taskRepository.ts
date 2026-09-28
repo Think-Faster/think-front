@@ -8,6 +8,7 @@ import {
   CreateTaskReturnRequest,
   CreateWorkTaskRequest,
   TaskAssignment,
+  TaskTransitionRequest,
   TaskPrediction,
   TaskReport,
   TaskReturn,
@@ -78,6 +79,22 @@ export const taskRepository = {
 
   async addReturn(id: string, request: CreateTaskReturnRequest): Promise<TaskReturn> {
     const { data } = await apiClient.post<TaskReturn>(endpoints.bff.tasks.returns(id), request);
+    return data;
+  },
+
+  // Переходы статуса; из неподходящего статуса BFF отвечает 409 invalid_status.
+  async start(id: string, request: TaskTransitionRequest = {}): Promise<WorkTask> {
+    const { data } = await apiClient.post<WorkTask>(endpoints.bff.tasks.start(id), request);
+    return data;
+  },
+
+  async close(id: string, request: TaskTransitionRequest = {}): Promise<WorkTask> {
+    const { data } = await apiClient.post<WorkTask>(endpoints.bff.tasks.close(id), request);
+    return data;
+  },
+
+  async cancel(id: string, request: TaskTransitionRequest = {}): Promise<WorkTask> {
+    const { data } = await apiClient.post<WorkTask>(endpoints.bff.tasks.cancel(id), request);
     return data;
   },
 };

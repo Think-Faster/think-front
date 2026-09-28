@@ -168,6 +168,33 @@ export function useTask(id: string | undefined) {
     }
   }
 
+  // Переходы без данных: инженер приступил, отчёт принят, заявка отменена.
+  async function transition(kind: 'start' | 'close' | 'cancel', comment?: string): Promise<boolean> {
+    if (!id) {
+      return false;
+    }
+
+    setActing(true);
+    setActionError('');
+
+    try {
+      const updated = await taskRepository[kind](id, { comment: comment || null });
+      setTask(updated);
+      return true;
+    } catch (err) {
+      const fallback = {
+        start: 'Не удалось начать работу.',
+        close: 'Не удалось закрыть заявку.',
+        cancel: 'Не удалось отменить заявку.',
+      }[kind];
+      setActionError(formatBffErrorMessage(err, fallback));
+      load();
+      return false;
+    } finally {
+      setActing(false);
+    }
+  }
+
   return {
     task,
     loading,
@@ -180,5 +207,8 @@ export function useTask(id: string | undefined) {
     addAssignment,
     addReport,
     addReturn,
+    start: (comment?: string) => transition('start', comment),
+    close: (comment?: string) => transition('close', comment),
+    cancel: (comment?: string) => transition('cancel', comment),
   };
 }

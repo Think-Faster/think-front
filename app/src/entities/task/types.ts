@@ -116,6 +116,12 @@ export interface CreateTaskReportRequest {
   comment?: string | null;
 }
 
+// Переходы без данных: начать работу, закрыть, отменить. Комментарий
+// дописывается к заявке.
+export interface TaskTransitionRequest {
+  comment?: string | null;
+}
+
 export interface CreateTaskReturnRequest {
   targetType: ReturnTargetType;
   targetUserId?: string | null;

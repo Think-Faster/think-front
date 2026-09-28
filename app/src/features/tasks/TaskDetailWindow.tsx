@@ -45,6 +45,9 @@ export default function TaskDetailWindow() {
     addAssignment,
     addReport,
     addReturn,
+    start,
+    close,
+    cancel,
   } = useTask(params.id);
 
   // Основанием заявки может быть только прогноз по её объекту.
@@ -89,6 +92,13 @@ export default function TaskDetailWindow() {
   const canEdit = canAct && active;
   // Инженеру показания объекта открыты, пока он на заявке (BFF /readings/scope).
   const canLogs = canReadings || engineerOnSite.includes(task.status);
+  // Переходы, которые BFF примет из текущего статуса (иначе 409 invalid_status).
+  const hasEngineer = task.assignments.some(item => item.status === 'assigned');
+  const canStart = canAct && (task.status === 'assigned' || task.status === 'returnedToWork') && hasEngineer;
+  const canReport = canAct && engineerOnSite.includes(task.status) && hasEngineer;
+  const canClose = canAct && task.status === 'completed';
+  const canCancel = canAct && (task.status === 'new' || active);
+  const canReturn = canAct && (active || task.status === 'completed');
   const attachedIds = task.predictions.filter(item => !item.detachedAt).map(item => item.predictionId);
   const attachable = predictions.filter(prediction => !attachedIds.includes(prediction.id));
 
@@ -152,8 +162,17 @@ export default function TaskDetailWindow() {
     }
   }
 
+  function handleCancel() {
+    if (window.confirm(`Отменить заявку №${task!.number}? Взятые по ней прогнозы закроются.`)) {
+      cancel();
+    }
+  }
+
   async function handleReturn(event: FormEvent) {
     event.preventDefault();
+    if (returnTarget === 'dispatcher' && !returnUserId) {
+      return;
+    }
 
     const ok = await addReturn({
       targetType: returnTarget,
@@ -196,11 +215,31 @@ export default function TaskDetailWindow() {
 
       {actionError && <div className="login-error">{actionError}</div>}
 
-      {task.status === 'new' && canAct && (
+      {(canCancel || canStart || canClose || (task.status === 'new' && canAct)) && (
         <div className="pd-actions">
-          <Button variant="primary" disabled={acting} onClick={() => take()}>
-            Взять в работу
-          </Button>
+          {canCancel && (
+            <Button disabled={acting} onClick={handleCancel}>
+              Отменить заявку
+            </Button>
+          )}
+
+          {task.status === 'new' && canAct && (
+            <Button variant="primary" disabled={acting} onClick={() => take()}>
+              Взять в работу
+            </Button>
+          )}
+
+          {canStart && (
+            <Button variant="primary" disabled={acting} onClick={() => start()}>
+              Начать работу
+            </Button>
+          )}
+
+          {canClose && (
+            <Button variant="primary" disabled={acting} onClick={() => close()}>
+              Принять отчёт и закрыть
+            </Button>
+          )}
         </div>
       )}
 
@@ -315,7 +354,7 @@ export default function TaskDetailWindow() {
         </div>
       ))}
 
-      {canEdit && (
+      {canReport && (
         <form className="login-form" onSubmit={handleReport}>
           <label>
             Результат
@@ -365,7 +404,7 @@ export default function TaskDetailWindow() {
         </div>
       ))}
 
-      {canEdit && (
+      {canReturn && (
         <form className="login-form" onSubmit={handleReturn}>
           <label>
             Куда вернуть
@@ -375,7 +414,7 @@ export default function TaskDetailWindow() {
           {returnTarget === 'dispatcher' && (
             <label>
               Диспетчер
-              <select value={returnUserId} onChange={event => setReturnUserId(event.target.value)}>
+              <select value={returnUserId} onChange={event => setReturnUserId(event.target.value)} required>
                 <option value="">— выбрать —</option>
                 {activeUsers.map(user => (
                   <option key={user.id} value={user.id}>
@@ -391,7 +430,7 @@ export default function TaskDetailWindow() {
             <input value={returnComment} onChange={event => setReturnComment(event.target.value)} />
           </label>
 
-          <Button type="submit" disabled={acting}>
+          <Button type="submit" disabled={acting || (returnTarget === 'dispatcher' && !returnUserId)}>
             Вернуть заявку
           </Button>
         </form>
