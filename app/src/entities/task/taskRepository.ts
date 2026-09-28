@@ -6,7 +6,9 @@ import {
   CreateTaskAssignmentRequest,
   CreateTaskReportRequest,
   CreateTaskReturnRequest,
+  AssigneeRole,
   CreateWorkTaskRequest,
+  TaskAssignee,
   TaskAssignment,
   TaskTransitionRequest,
   TaskPrediction,
@@ -79,6 +81,11 @@ export const taskRepository = {
 
   async addReturn(id: string, request: CreateTaskReturnRequest): Promise<TaskReturn> {
     const { data } = await apiClient.post<TaskReturn>(endpoints.bff.tasks.returns(id), request);
+    return data;
+  },
+
+  async getAssignees(role: AssigneeRole): Promise<TaskAssignee[]> {
+    const { data } = await apiClient.get<TaskAssignee[]>(endpoints.bff.tasks.assignees, { params: { role } });
     return data;
   },
 

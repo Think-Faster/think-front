@@ -1,8 +1,9 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { usePermission } from '../../core/permissions/permissionService';
-import { ReturnTargetType, WorkTaskStatus } from '../../entities/task/types';
+import { taskRepository } from '../../entities/task/taskRepository';
+import { ReturnTargetType, TaskAssignee, WorkTaskStatus } from '../../entities/task/types';
 import Badge from '../../shared/ui/Badge';
 import Button from '../../shared/ui/Button';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
@@ -52,7 +53,14 @@ export default function TaskDetailWindow() {
 
   // Основанием заявки может быть только прогноз по её объекту.
   const { predictions } = usePredictions(task?.objectId);
-  const activeUsers = users.filter(user => user.isActive);
+  // Кого назначить и кому вернуть — участники групп engineers/dispatchers (BFF /tasks/assignees).
+  const [engineers, setEngineers] = useState<TaskAssignee[]>([]);
+  const [dispatchers, setDispatchers] = useState<TaskAssignee[]>([]);
+
+  useEffect(() => {
+    taskRepository.getAssignees('engineers').then(setEngineers).catch(() => setEngineers([]));
+    taskRepository.getAssignees('dispatchers').then(setDispatchers).catch(() => setDispatchers([]));
+  }, []);
 
   const canAct = usePermission('tasks', 'update');
   const canReadings = usePermission('readings', 'read');
@@ -108,7 +116,9 @@ export default function TaskDetailWindow() {
   }
 
   function userName(userId: string): string {
-    const user = users.find(item => item.id === userId);
+    const user = users.find(item => item.id === userId)
+      ?? engineers.find(item => item.id === userId)
+      ?? dispatchers.find(item => item.id === userId);
     return user ? `${user.lastName} ${user.firstName}` : userId;
   }
 
@@ -320,7 +330,7 @@ export default function TaskDetailWindow() {
             Инженер
             <select value={engineerId} onChange={event => setEngineerId(event.target.value)}>
               <option value="">— выбрать —</option>
-              {activeUsers.map(user => (
+              {engineers.map(user => (
                 <option key={user.id} value={user.id}>
                   {user.lastName} {user.firstName}
                 </option>
@@ -416,7 +426,7 @@ export default function TaskDetailWindow() {
               Диспетчер
               <select value={returnUserId} onChange={event => setReturnUserId(event.target.value)} required>
                 <option value="">— выбрать —</option>
-                {activeUsers.map(user => (
+                {dispatchers.map(user => (
                   <option key={user.id} value={user.id}>
                     {user.lastName} {user.firstName}
                   </option>
