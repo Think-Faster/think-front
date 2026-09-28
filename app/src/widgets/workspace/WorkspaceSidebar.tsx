@@ -1,19 +1,24 @@
 import { PointerEvent, useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { BffErrorCode } from '../../core/errors/bffError';
 import { isWindowVisible, WindowDefinition, windowRegistry } from '../../core/registry/windowRegistry';
 import { SEGMENT_OPTIONS } from '../../core/workspace/gridConfig';
+import { definitionIdOf } from '../../core/workspace/windowInstance';
 import UserMenu from '../../features/auth/UserMenu';
 import MailButton from '../../features/notifications/MailButton';
-import { CurtainIcon, LogoMark, MinusCircleIcon, PlusCircleIcon, TrashIcon } from '../../shared/ui/icons';
+import { CurtainIcon, LogoMark, MinusCircleIcon, MoonIcon, PlusCircleIcon, SunIcon, TrashIcon } from '../../shared/ui/icons';
 import { usePermissionsStore } from '../../stores/permissions/permissionsStore';
+import { useThemeStore } from '../../stores/theme/themeStore';
 import { useFreeStore } from '../../stores/workspace/freeStore';
 import { orderedWindowIds, segmentCount, useGridStore } from '../../stores/workspace/gridStore';
 import { useLayoutStore } from '../../stores/workspace/layoutStore';
+import { windowContextSnapshot } from '../../stores/workspace/windowScope';
 import {
   closeWindow,
   isWindowOpen,
   openWindow,
+  openWindowCopy,
   restoreWindow,
   setOverlap,
   setSegments,
@@ -110,7 +115,7 @@ function SectionButton({ definition, selected, compact = false }: SectionButtonP
 
   const classes = ['side-btn', compact ? 'compact' : '', selected ? 'on' : ''].filter(Boolean).join(' ');
 
-  return (
+  const button = (
     <button
       className={classes}
       aria-pressed={definition.action ? undefined : selected}
@@ -124,6 +129,45 @@ function SectionButton({ definition, selected, compact = false }: SectionButtonP
       onClick={handleClick}
     >
       <span className="side-btn-text">{definition.title}</span>
+    </button>
+  );
+
+  if (!definition.multiple || !selected) {
+    return button;
+  }
+  return (
+    <div className="side-row">
+      {button}
+      <CopyButton definition={definition} compact={compact} />
+    </div>
+  );
+}
+
+// «+» у открытого раздела, который можно держать в нескольких окнах: ещё
+// одно окно с объектом, выбранным сейчас.
+function CopyButton({ definition, compact }: { definition: WindowDefinition; compact: boolean }) {
+  const { pathname } = useLocation();
+  const label = `Ещё одно окно «${definition.title}»`;
+  return (
+    <button
+      className={`side-copy ${compact ? 'compact' : ''}`.trim()}
+      onClick={() => openWindowCopy(definition.id, windowContextSnapshot(definition.id, definition.route, pathname))}
+      title={label}
+      aria-label={label}
+    >
+      <PlusCircleIcon />
+    </button>
+  );
+}
+
+// Светлая или тёмная тема; до первого нажатия — как в системе.
+function ThemeToggle() {
+  const theme = useThemeStore(state => state.theme);
+  const toggle = useThemeStore(state => state.toggle);
+  const label = theme === 'dark' ? 'Светлая тема' : 'Тёмная тема';
+  return (
+    <button className="sidebar-theme" onClick={toggle} title={label} aria-label={label}>
+      {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
     </button>
   );
 }
@@ -224,6 +268,7 @@ export default function WorkspaceSidebar() {
   const reloadPermissions = usePermissionsStore(state => state.load);
   const openIds = useOpenWindowIds();
   const [moreOpen, setMoreOpen] = useState(false);
+  const draggingWindow = useLayoutStore(state => state.drag?.source === 'window');
 
   useEffect(() => {
     if (!hint) {
@@ -248,13 +293,14 @@ export default function WorkspaceSidebar() {
   const more = visible.filter(definition => definition.section === 'more');
 
   function isSelected(definition: WindowDefinition): boolean {
-    return !definition.action && openIds.includes(definition.id);
+    return !definition.action && openIds.some(id => definitionIdOf(id) === definition.id);
   }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${draggingWindow ? 'window-drag' : ''}`.trim()}>
       <div className="sidebar-top">
         <LogoMark className="sidebar-logo" />
+        <ThemeToggle />
         <button className="sidebar-curtain" onClick={toggleSidebar} title="Свернуть панель" aria-label="Свернуть панель">
           <CurtainIcon />
         </button>

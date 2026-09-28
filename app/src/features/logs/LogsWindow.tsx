@@ -7,19 +7,24 @@ import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
 import EmptyState from '../../shared/ui/EmptyState';
 import ListFooter from '../../shared/ui/ListFooter';
 import SearchField, { matchesSearch } from '../../shared/ui/SearchField';
-import { useSelectionStore } from '../../stores/selection/selectionStore';
+import { useWindowObject } from '../../stores/workspace/windowScope';
 import { openWindow } from '../../stores/workspace/workspaceCommands';
 import { useObjects } from '../objects/hooks/useObjects';
+import { channelHint } from '../sensors/sensorLabels';
 import { useReadingsScope } from './hooks/useReadingsScope';
 import { StreamState, useReadingsStream } from './hooks/useReadingsStream';
 import { SENSOR_NAME_OBJECTS, useSensorNames } from './hooks/useSensorNames';
 
 type Filter = 'all' | 'alarm';
 
+// reading.alarm — флаг источника: запись «тревожное сообщение», которую
+// диспетчер ещё проверит. Это не тревога системы и не авария.
 const filterOptions: { value: Filter; label: string }[] = [
   { value: 'all', label: 'Все показания' },
-  { value: 'alarm', label: 'Тревожные' },
+  { value: 'alarm', label: 'Тревожные сообщения' },
 ];
+
+const ALARM_MESSAGE_LABEL = 'тревожное сообщение';
 
 const stateLabels: Record<StreamState, string> = {
   idle: '',
@@ -63,8 +68,7 @@ function formatClock(iso: string): string {
 // по которым работает, пока заявка не закрыта отчётом.
 export default function LogsWindow() {
   const { objects } = useObjects();
-  const selectedId = useSelectionStore(state => state.objectId);
-  const setSelectedId = useSelectionStore(state => state.setObjectId);
+  const [selectedId, setSelectedId] = useWindowObject();
   const { scope, error: scopeError } = useReadingsScope();
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
@@ -181,11 +185,16 @@ export default function LogsWindow() {
             <span className="log-time" title={`Принято ${new Date(reading.receivedAt).toLocaleString('ru-RU')}`}>
               {formatMoment(reading, today)}
             </span>
-            <span className="log-sensor" title={`Канал ${reading.sensorId}`}>
+            <span
+              className="log-sensor"
+              title={[`Канал ${reading.sensorId}`, channelHint(names.get(reading.sensorId) ?? '')]
+                .filter(Boolean)
+                .join(' · ')}
+            >
               {names.get(reading.sensorId) ?? `Канал ${reading.sensorId}`}
             </span>
             <span className="log-value">{reading.value}</span>
-            {reading.alarm && <Badge tone="high">тревога</Badge>}
+            {reading.alarm && <Badge tone="high">{ALARM_MESSAGE_LABEL}</Badge>}
           </div>
         ))}
 

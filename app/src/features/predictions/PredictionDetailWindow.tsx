@@ -1,18 +1,18 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import { usePermission } from '../../core/permissions/permissionService';
 import Badge from '../../shared/ui/Badge';
 import Button from '../../shared/ui/Button';
 import EmptyState from '../../shared/ui/EmptyState';
 import ProgressBar from '../../shared/ui/ProgressBar';
-import { useSelectionStore } from '../../stores/selection/selectionStore';
-import { openWindow } from '../../stores/workspace/workspaceCommands';
+import { openWindowWithObject, useWindowEntityId } from '../../stores/workspace/windowScope';
 import { showObjectOnMap } from '../map/mapRequest';
 import { useObjects } from '../objects/hooks/useObjects';
 import { usePrediction } from './hooks/usePrediction';
 import {
   formatProbability,
+  POSSIBLE_ACCIDENT_LABEL,
   predictionTypeLabels,
   probabilityTone,
   REJECT_REASON_OTHER,
@@ -31,15 +31,15 @@ function formatTs(value: string): string {
 }
 
 export default function PredictionDetailWindow() {
-  const params = useParams<{ id: string }>();
+  // Первая карточка — прогноз из адреса /predictions/:id, копия — свой.
+  const predictionId = useWindowEntityId();
   const navigate = useNavigate();
   const { objects } = useObjects();
-  const { prediction, loading, error, decide, takeToTask, deciding, decisionError } = usePrediction(params.id);
+  const { prediction, loading, error, decide, takeToTask, deciding, decisionError } = usePrediction(predictionId);
   const canDecide = usePermission('predictions', 'update');
   const canReadTasks = usePermission('tasks', 'read');
   const canMap = usePermission('objects', 'read');
   const canReadings = usePermission('readings', 'read');
-  const setSelectedId = useSelectionStore(state => state.setObjectId);
 
   const [rejecting, setRejecting] = useState(false);
   const [reasonCode, setReasonCode] = useState('');
@@ -87,8 +87,7 @@ export default function PredictionDetailWindow() {
   }
 
   function openLogs() {
-    setSelectedId(prediction!.objectId);
-    openWindow('logs');
+    openWindowWithObject('logs', prediction!.objectId);
   }
 
   async function handleReject(event: FormEvent) {
@@ -117,6 +116,13 @@ export default function PredictionDetailWindow() {
         {object ? object.name : `Объект #${prediction.objectId}`} ·{' '}
         {new Date(prediction.hourEnd).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
       </p>
+
+      {/* §13.11: объект «слепой» — прогноз опирается на то, что было до потери данных */}
+      {object?.status === 'offline' && (
+        <div className="status-note rej">
+          Объект не видно: показания не приходят, прогноз по данным до потери — {POSSIBLE_ACCIDENT_LABEL}.
+        </div>
+      )}
 
       {(canMap || canReadings) && (
         <div className="pd-actions">

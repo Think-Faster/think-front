@@ -46,7 +46,7 @@ function DragGhost() {
   }
   return (
     <div className={`drag-ghost ${drag.overTrash ? 'to-trash' : ''}`} style={{ left: drag.x, top: drag.y }}>
-      {drag.title}
+      {drag.overTrash ? `Закрыть «${drag.title}»` : drag.title}
     </div>
   );
 }

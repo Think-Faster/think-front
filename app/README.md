@@ -1,73 +1,46 @@
-# Getting Started with Create React App
+# Thinkfaster — фронтенд
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Рабочее место диспетчера: карта объектов, журналы прогнозов и данных,
+заявки, логи датчиков, люди и настройки модели — окнами на одном холсте.
+React 19 + TypeScript (Create React App), состояние — Zustand, данные — BFF
+(`/api/bff/*`) и воронка показаний (`/api/funnel/*`).
 
-> Структура проекта, слои (`core/entities/features/widgets/shared/stores`) и
-> инструкции по добавлению компонентов/сущностей/окон — см. [ARCHITECTURE.md](./ARCHITECTURE.md).
+- Как устроен код и как добавлять окна, сущности и компоненты —
+  [ARCHITECTURE.md](ARCHITECTURE.md).
+- Несколько окон одного раздела, тёмная тема, выбор вместо ввода —
+  [SPEC.md](SPEC.md).
 
-## Available Scripts
+## Команды
 
-In the project directory, you can run:
+Из папки `app/`:
 
-### `npm start`
+| команда | что делает |
+|---|---|
+| `npm ci` | ставит зависимости по `package-lock.json` |
+| `npm start` | дев-сервер на http://localhost:3000 |
+| `CI=true npm run build` | сборка в `build/` с проверкой типов; предупреждения ESLint считаются ошибками |
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Автотестов пока нет: `npm test` запускает Jest, но тестовых файлов в `src/`
+нет.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Дев-сервер ходит в API по относительному `/api`: без прокси до BFF окна
+покажут ошибку загрузки. Базовый адрес меняется переменной
+`REACT_APP_API_BASE_URL`.
 
-### `npm test`
+## Переменные окружения
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Читаются при сборке в `src/core/config/config.ts`:
 
-### `npm run build`
+| переменная | по умолчанию | назначение |
+|---|---|---|
+| `REACT_APP_APP_NAME` | `Thinkfaster` | заголовок вкладки |
+| `REACT_APP_ENVIRONMENT` | `development` | имя окружения |
+| `REACT_APP_API_BASE_URL` | `/api` | префикс API (BFF и воронка за одним nginx) |
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Сборка и выкатка
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- `deploy/Dockerfile` собирает `app/` на Node 22 и отдаёт `build/` через
+  nginx (`nginx/default.conf`).
+- Пуш любой рабочей ветки запускает `.github/workflows/deploy-dev.yml`:
+  ветка сливается в `dev` и выкатывается на dev-стенд.
+- Prod — `.github/workflows/deploy-prod.yml` по пушу в ветку `prod`.

@@ -4,10 +4,16 @@ import { usePermission } from '../../core/permissions/permissionService';
 import { EngineerStatus } from '../../entities/engineer/types';
 import Button from '../../shared/ui/Button';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
+import ChipMultiSelect from '../../shared/ui/ChipMultiSelect';
 import EmptyState from '../../shared/ui/EmptyState';
 import { useBrigades } from './hooks/useBrigades';
 import { useEngineerProfile } from './hooks/useEngineerProfile';
-import { engineerStatusLabels, engineerStatusOptions } from './peopleLabels';
+import {
+  engineerSpecializationLabel,
+  engineerSpecializationOptions,
+  engineerStatusLabels,
+  engineerStatusOptions,
+} from './peopleLabels';
 
 interface EngineerTabProps {
   userId: string;
@@ -17,7 +23,7 @@ const emptyForm = {
   brigadeId: '',
   phone: '',
   telegram: '',
-  specialization: '',
+  specialization: [] as string[],
   status: 'available' as EngineerStatus,
 };
 
@@ -36,7 +42,7 @@ export default function EngineerTab({ userId }: EngineerTabProps) {
         brigadeId: profile.brigadeId ?? '',
         phone: profile.phone ?? '',
         telegram: profile.telegram ?? '',
-        specialization: profile.specialization.join(', '),
+        specialization: profile.specialization,
         status: profile.status,
       });
     } else {
@@ -56,10 +62,7 @@ export default function EngineerTab({ userId }: EngineerTabProps) {
       brigadeId: form.brigadeId || null,
       phone: form.phone || null,
       telegram: form.telegram || null,
-      specialization: form.specialization
-        .split(',')
-        .map(item => item.trim())
-        .filter(Boolean),
+      specialization: form.specialization,
       status: form.status,
     });
   }
@@ -93,7 +96,7 @@ export default function EngineerTab({ userId }: EngineerTabProps) {
             <div className="d">
               {profile.brigadeId ? resolveBrigadeName(profile.brigadeId) : 'без бригады'}
               {profile.phone ? ` · ${profile.phone}` : ''}
-              {profile.specialization.length > 0 ? ` · ${profile.specialization.join(', ')}` : ''}
+              {profile.specialization.length > 0 ? ` · ${profile.specialization.map(engineerSpecializationLabel).join(', ')}` : ''}
             </div>
           </div>
         </div>
@@ -138,14 +141,15 @@ export default function EngineerTab({ userId }: EngineerTabProps) {
               />
             </label>
 
-            <label>
-              Специализация (через запятую)
-              <input
+            <div className="form-field">
+              <span>Специализация</span>
+              <ChipMultiSelect
+                options={engineerSpecializationOptions}
                 value={form.specialization}
-                onChange={event => setForm(current => ({ ...current, specialization: event.target.value }))}
+                onChange={specialization => setForm(current => ({ ...current, specialization }))}
                 disabled={saving}
               />
-            </label>
+            </div>
 
             <label>
               Статус

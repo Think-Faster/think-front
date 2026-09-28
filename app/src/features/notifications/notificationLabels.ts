@@ -23,3 +23,10 @@ export function emailSendStatusTone(status: EmailSendStatus): 'high' | 'med' | '
       return 'high';
   }
 }
+
+// Тип письма — только для логов tf-mail (контракт SendEmailRequest.kind):
+// по факту или по прогнозу, как режим рекомендации (§11 доменного документа).
+export const emailKindOptions: { value: string; label: string }[] = [
+  { value: 'fact', label: 'по факту' },
+  { value: 'forecast', label: 'по прогнозу' },
+];

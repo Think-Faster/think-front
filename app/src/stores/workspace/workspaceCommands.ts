@@ -1,6 +1,8 @@
 import { SEGMENT_OPTIONS } from '../../core/workspace/gridConfig';
+import { definitionIdOf, MAX_WINDOW_INSTANCES, nextInstanceId } from '../../core/workspace/windowInstance';
 import { useFreeStore } from './freeStore';
 import { orderedWindowIds, segmentCount, useGridStore } from './gridStore';
+import { InstanceContext, useInstanceStore } from './instanceStore';
 import { useLayoutStore } from './layoutStore';
 
 // Единая точка «открыть/закрыть окно» для обоих режимов раскладки: сайдбар,
@@ -45,10 +47,25 @@ export function openWindow(windowId: string, at?: { x: number; y: number }) {
   );
 }
 
+// Ещё одно окно того же типа (windowId — любой экземпляр или id записи
+// реестра) со своим объектом или карточкой. Копия открывается рядом с
+// исходным окном в свободном режиме и в свободной ячейке в сетке.
+export function openWindowCopy(windowId: string, context: InstanceContext, at?: { x: number; y: number }) {
+  const copyId = nextInstanceId(definitionIdOf(windowId), openWindowIds());
+  if (!copyId) {
+    useLayoutStore.getState().setHint(`Окон одного раздела — не больше ${MAX_WINDOW_INSTANCES}. Закройте лишнее.`);
+    return;
+  }
+  useInstanceStore.getState().clearContext(copyId);
+  useInstanceStore.getState().setContext(copyId, context);
+  openWindow(copyId, at);
+}
+
 export function closeWindow(windowId: string) {
   useLayoutStore.getState().setMinimized(windowId, false);
   useFreeStore.getState().close(windowId);
   useGridStore.getState().removeWindow(windowId);
+  useInstanceStore.getState().clearContext(windowId);
 }
 
 export function toggleWindow(windowId: string) {

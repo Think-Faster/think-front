@@ -11,7 +11,15 @@ import { predictionRepository } from '../../../entities/prediction/predictionRep
 import { PredictionListItem } from '../../../entities/prediction/types';
 import { taskRepository } from '../../../entities/task/taskRepository';
 import { WorkTaskListItem } from '../../../entities/task/types';
-import { formatProbability, predictionStatusLabels, predictionTypeLabels, probabilityTone } from '../../predictions/predictionLabels';
+import {
+  alertGroupLabels,
+  alertGroupTone,
+  factSummary,
+  formatProbability,
+  predictionStatusLabels,
+  predictionTypeLabels,
+  probabilityTone,
+} from '../../predictions/predictionLabels';
 import { taskStatusLabels, taskStatusTone } from '../../tasks/taskLabels';
 
 export type EntryKind = 'prediction' | 'incident' | 'task' | 'factAlert';
@@ -112,10 +120,12 @@ export function useObjectHistory(objectId: number | null) {
             key: `a:${alert.id}`,
             kind: 'factAlert' as const,
             at: alert.announcedAt,
-            title: predictionTypeLabels[alert.type],
-            meta: alert.triggerSensorIds.length > 0 ? `датчики ${alert.triggerSensorIds.join(', ')}` : '',
+            title: `${predictionTypeLabels[alert.type]} · ${alertGroupLabels[alert.group]}${alert.live ? ', идёт' : ''}`,
+            meta:
+              factSummary(alert) ??
+              (alert.triggerSensorIds.length > 0 ? `датчики ${alert.triggerSensorIds.join(', ')}` : ''),
             badge: alert.status,
-            tone: 'high',
+            tone: alertGroupTone[alert.group],
           })),
         ];
 

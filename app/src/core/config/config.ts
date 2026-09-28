@@ -7,7 +7,7 @@ export interface AppConfig {
 }
 
 export const config: AppConfig = {
-  appName: process.env.REACT_APP_APP_NAME || 'КОНТУР',
+  appName: process.env.REACT_APP_APP_NAME || 'Thinkfaster',
   environment: process.env.REACT_APP_ENVIRONMENT || 'development',
   apiBaseUrl: process.env.REACT_APP_API_BASE_URL || '/api',
 };

@@ -5,6 +5,7 @@ import { FactAlert } from './types';
 
 export interface FactAlertFilter extends PageRequest {
   objectId?: number;
+  live?: boolean; // true — только идущие эпизоды
 }
 
 // Только чтение: тревоги создаёт контур обработки показаний (POST

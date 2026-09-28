@@ -28,6 +28,11 @@
 
   --sidebar-width: 240px;
 
+  /* Слои: шторка поверх холста; окно, которое тянут, — поверх шторки,
+     чтобы его было видно над мусоркой. */
+  --z-sidebar: 1000;
+  --z-window-dragged: 1100;
+
   --amber: #b8791f;
   --amber-dim: rgba(184, 121, 31, 0.1);
 
@@ -40,7 +45,107 @@
   --green: #3f8a52;
   --green-dim: rgba(63, 138, 82, 0.1);
 
+  /* Тени и линии поверх поверхностей задаются каналами: rgba(var(--shade-rgb), .2).
+     В тёмной теме тень — чёрная, линия — светлая. */
+  --shade-rgb: 13, 35, 58;
+  --ink-rgb: 13, 35, 58;
+
+  /* Затемнение под модальным окном, полупрозрачная плашка над картой,
+     фон пустой ячейки сетки. */
+  --overlay: rgba(13, 35, 58, 0.45);
+  --glass: rgba(255, 255, 255, 0.92);
+  --cell-bg: rgba(255, 255, 255, 0.35);
+
+  /* Поля ввода: рамка видна и на белой карточке, и на сером фоне. */
+  --field-bg: var(--bg);
+  --field-border: var(--border-strong);
+
+  color-scheme: light;
   box-sizing: border-box;
+}
+
+/* Тёмная тема: по системной настройке, пока пользователь не выбрал сам
+   (stores/theme/themeStore.ts), и по явному выбору. Здесь только токены —
+   компоненты берут цвета из них. Сайдбар и шапки окон на фирменном
+   градиенте одинаковы в обеих темах. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0f1722;
+    --surface: #172230;
+    --surface-raised: #1c2938;
+    --surface-hover: #223246;
+
+    --border: #2a3a4e;
+    --border-strong: #3a4d64;
+
+    --text: #e3eaf3;
+    --text-dim: #a6b4c4;
+    --text-faint: #7d8a99;
+    --muted: #7d8a99;
+
+    --brand: #5b9bd8;
+    --brand-dim: rgba(91, 155, 216, 0.16);
+
+    --canvas-line: rgba(227, 234, 243, 0.06);
+    --cell-line: rgba(91, 155, 216, 0.35);
+
+    --amber: #d9a04a;
+    --amber-dim: rgba(217, 160, 74, 0.16);
+    --red: #e5624f;
+    --red-dim: rgba(229, 98, 79, 0.16);
+    --cyan: #5b9bd8;
+    --cyan-dim: rgba(91, 155, 216, 0.16);
+    --green: #5fb574;
+    --green-dim: rgba(95, 181, 116, 0.16);
+
+    --shade-rgb: 0, 0, 0;
+    --ink-rgb: 227, 234, 243;
+    --overlay: rgba(0, 0, 0, 0.6);
+    --glass: rgba(23, 34, 48, 0.92);
+    --cell-bg: rgba(23, 34, 48, 0.35);
+    --field-bg: #111a26;
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0f1722;
+  --surface: #172230;
+  --surface-raised: #1c2938;
+  --surface-hover: #223246;
+
+  --border: #2a3a4e;
+  --border-strong: #3a4d64;
+
+  --text: #e3eaf3;
+  --text-dim: #a6b4c4;
+  --text-faint: #7d8a99;
+  --muted: #7d8a99;
+
+  --brand: #5b9bd8;
+  --brand-dim: rgba(91, 155, 216, 0.16);
+
+  --canvas-line: rgba(227, 234, 243, 0.06);
+  --cell-line: rgba(91, 155, 216, 0.35);
+
+  --amber: #d9a04a;
+  --amber-dim: rgba(217, 160, 74, 0.16);
+  --red: #e5624f;
+  --red-dim: rgba(229, 98, 79, 0.16);
+  --cyan: #5b9bd8;
+  --cyan-dim: rgba(91, 155, 216, 0.16);
+  --green: #5fb574;
+  --green-dim: rgba(95, 181, 116, 0.16);
+
+  --shade-rgb: 0, 0, 0;
+  --ink-rgb: 227, 234, 243;
+  --overlay: rgba(0, 0, 0, 0.6);
+  --glass: rgba(23, 34, 48, 0.92);
+  --cell-bg: rgba(23, 34, 48, 0.35);
+  --field-bg: #111a26;
+
+  color-scheme: dark;
 }
 
 *,
@@ -105,12 +210,34 @@ select {
   padding: 6px 8px;
 
   border-radius: 6px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--field-border);
 
-  background: var(--bg);
+  background: var(--field-bg);
   color: var(--text);
 
   outline: none;
+}
+
+/* Поля без своего класса выглядят как select; :where не добавляет
+   специфичности — стили форм и .search-field перекрывают это правило. */
+:where(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color']), textarea) {
+  padding: 6px 8px;
+
+  border-radius: 6px;
+  border: 1px solid var(--field-border);
+
+  background: var(--field-bg);
+  color: var(--text);
+
+  outline: none;
+}
+
+:where(input, textarea):focus {
+  border-color: var(--brand);
+}
+
+:where(input, textarea, select):disabled {
+  opacity: 0.6;
 }
 
 select:focus {
@@ -341,7 +468,7 @@ header {
   border: 1px solid var(--border-strong);
   border-radius: 9px;
 
-  box-shadow: 0 8px 20px rgba(15, 23, 32, 0.14);
+  box-shadow: 0 8px 20px rgba(var(--shade-rgb), 0.14);
 
   padding: 12px;
 }
@@ -449,7 +576,7 @@ header {
   bottom: 0;
   left: 0;
 
-  z-index: 1000;
+  z-index: var(--z-sidebar);
 
   width: var(--sidebar-width);
 
@@ -459,7 +586,7 @@ header {
   background: var(--grad-side);
   color: var(--on-brand);
 
-  box-shadow: 4px 0 20px rgba(13, 35, 58, 0.25);
+  box-shadow: 4px 0 20px rgba(var(--shade-rgb), 0.25);
 }
 
 .sidebar :focus-visible {
@@ -542,6 +669,32 @@ header {
   height: 26px;
 }
 
+.sidebar-theme {
+  position: absolute;
+  top: 29px;
+  right: 60px;
+
+  width: 26px;
+  height: 26px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border: none;
+  background: none;
+  color: var(--on-brand);
+
+  cursor: pointer;
+}
+
+.sidebar-theme svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar-theme:hover,
 .sidebar-curtain:hover {
   filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.6));
 }
@@ -556,6 +709,16 @@ header {
 
   scrollbar-width: thin;
   scrollbar-color: rgba(242, 243, 247, 0.35) transparent;
+}
+
+/* Пока тянут окно, цель в шторке одна — мусорка; разделы отходят на
+   второй план. */
+.sidebar-scroll {
+  transition: opacity 0.15s;
+}
+
+.sidebar.window-drag .sidebar-scroll {
+  opacity: 0.35;
 }
 
 .sidebar-nav {
@@ -626,6 +789,62 @@ header {
   height: 30px;
 
   font-size: 13px;
+}
+
+/* Раздел, который можно открыть в нескольких окнах: рядом с открытым —
+   «+», ещё одно окно. Ряд занимает ширину обычной кнопки. */
+.side-row {
+  width: 196px;
+  flex: none;
+
+  display: flex;
+  gap: 6px;
+}
+
+.side-row .side-btn {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.side-copy {
+  flex: none;
+
+  width: 35px;
+  height: 35px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+
+  border: 2px solid var(--on-brand);
+  border-radius: 12px;
+
+  background: transparent;
+  color: var(--on-brand);
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.side-copy.compact {
+  width: 30px;
+  height: 30px;
+}
+
+.side-copy svg {
+  width: 16px;
+  height: 16px;
+}
+
+.side-copy:hover,
+.side-copy:focus-visible {
+  background: var(--on-brand);
+  color: var(--brand-deep);
 }
 
 .sidebar-more {
@@ -1023,7 +1242,7 @@ header {
   border: 2px dashed var(--cell-line);
   border-radius: 12px;
 
-  background: rgba(255, 255, 255, 0.35);
+  background: var(--cell-bg);
 }
 
 .grid-cell-hint {
@@ -1099,7 +1318,7 @@ header {
 .win.win-free {
   position: absolute;
 
-  box-shadow: 0 10px 30px rgba(13, 35, 58, 0.18);
+  box-shadow: 0 10px 30px rgba(var(--shade-rgb), 0.18);
 }
 
 .win-resize {
@@ -1116,12 +1335,12 @@ header {
   background: linear-gradient(
     135deg,
     transparent 55%,
-    rgba(13, 35, 58, 0.3) 55%,
-    rgba(13, 35, 58, 0.3) 62%,
+    rgba(var(--ink-rgb), 0.3) 55%,
+    rgba(var(--ink-rgb), 0.3) 62%,
     transparent 62%,
     transparent 75%,
-    rgba(13, 35, 58, 0.3) 75%,
-    rgba(13, 35, 58, 0.3) 82%,
+    rgba(var(--ink-rgb), 0.3) 75%,
+    rgba(var(--ink-rgb), 0.3) 82%,
     transparent 82%
   );
 }
@@ -1150,7 +1369,7 @@ header {
   border-radius: 12px;
   overflow: hidden;
 
-  box-shadow: 0 6px 18px rgba(13, 35, 58, 0.2);
+  box-shadow: 0 6px 18px rgba(var(--shade-rgb), 0.2);
 }
 
 .min-strip {
@@ -1226,7 +1445,7 @@ header {
 
   border-radius: 12px;
 
-  box-shadow: 0 6px 18px rgba(13, 35, 58, 0.2);
+  box-shadow: 0 6px 18px rgba(var(--shade-rgb), 0.2);
 }
 
 /* =========================
@@ -1244,7 +1463,7 @@ header {
 
   border-radius: 12px;
 
-  box-shadow: 0 4px 16px rgba(13, 35, 58, 0.12);
+  box-shadow: 0 4px 16px rgba(var(--shade-rgb), 0.12);
 
   overflow: hidden;
 }
@@ -1335,10 +1554,39 @@ header {
   opacity: 0.85;
 }
 
+/* Свободное окно над мусоркой сжимается в миниатюру по центру курсора —
+   видно, что оно уходит в мусорку. Точку захвата и масштаб задаёт
+   FreeCanvas (--grab-x, --grab-y, --trash-scale). */
+.win.win-free.dragging {
+  transform-origin: var(--grab-x) var(--grab-y);
+
+  transition:
+    transform 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.win.win-free.to-trash {
+  opacity: 0.8;
+
+  transform:
+    translate(
+      calc(var(--trash-scale) * (var(--grab-x) - 50%)),
+      calc(var(--trash-scale) * (var(--grab-y) - 50%))
+    )
+    scale(var(--trash-scale));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .win.win-free.dragging,
+  .sidebar-scroll {
+    transition: none;
+  }
+}
+
 .win.to-trash {
   box-shadow:
     0 0 0 3px var(--red),
-    0 10px 30px rgba(13, 35, 58, 0.18);
+    0 10px 30px rgba(var(--shade-rgb), 0.18);
 }
 
 .win.to-trash .win-head {
@@ -1363,7 +1611,7 @@ header {
   font-size: 13px;
   font-weight: 600;
 
-  box-shadow: 0 6px 16px rgba(13, 35, 58, 0.25);
+  box-shadow: 0 6px 16px rgba(var(--shade-rgb), 0.25);
 }
 
 .drag-ghost.to-trash {
@@ -1426,6 +1674,26 @@ header {
   background: var(--grad);
   border-color: transparent;
   color: #ffffff;
+}
+
+.chip-filter:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Пояснение под полем: что подставлено автоматически. */
+.form-hint {
+  font-size: 12px;
+  font-weight: 400;
+
+  color: var(--text-faint);
+}
+
+/* Выбор из справочника: select и, для «другое…», поле своего значения. */
+.choice-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 /* =========================
@@ -1525,6 +1793,14 @@ button.queue-item {
   font-family:
     'IBM Plex Mono',
     monospace;
+}
+
+.queue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  margin-top: 8px;
 }
 
 .badge {
@@ -1645,7 +1921,7 @@ button.queue-item {
 
   background: var(--surface);
 
-  box-shadow: 0 1px 2px rgba(13, 35, 58, 0.06);
+  box-shadow: 0 1px 2px rgba(var(--shade-rgb), 0.06);
 
   transition: box-shadow 0.12s;
 }
@@ -1653,7 +1929,7 @@ button.queue-item {
 .card-list .queue-item:hover {
   background: var(--surface);
 
-  box-shadow: 0 4px 12px rgba(13, 35, 58, 0.12);
+  box-shadow: 0 4px 12px rgba(var(--shade-rgb), 0.12);
 }
 
 .card-list .queue-item.active {
@@ -1790,9 +2066,9 @@ button.queue-item {
   padding: 9px 11px;
 
   border-radius: 10px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--field-border);
 
-  background: var(--bg);
+  background: var(--field-bg);
   color: var(--text);
 
   font-size: 14px;
@@ -1871,7 +2147,7 @@ button.queue-item {
 
   padding: 24px;
 
-  background: rgba(13, 35, 58, 0.45);
+  background: var(--overlay);
 }
 
 .modal {
@@ -1884,7 +2160,7 @@ button.queue-item {
   border-radius: 14px;
 
   background: var(--bg);
-  box-shadow: 0 20px 60px rgba(13, 35, 58, 0.35);
+  box-shadow: 0 20px 60px rgba(var(--shade-rgb), 0.35);
 
   overflow: hidden;
 }
@@ -2452,7 +2728,7 @@ label.recipient-item {
 
   background: var(--surface);
 
-  box-shadow: 0 16px 40px rgba(13, 35, 58, 0.14);
+  box-shadow: 0 16px 40px rgba(var(--shade-rgb), 0.14);
 }
 
 .login-logo {
@@ -2463,7 +2739,7 @@ label.recipient-item {
 
   margin: 0 auto 20px;
 
-  color: var(--brand-deep);
+  color: var(--text);
 }
 
 .login-title {
@@ -2504,9 +2780,9 @@ label.recipient-item {
   padding: 11px 14px;
 
   border-radius: 12px;
-  border: 1px solid transparent;
+  border: 1px solid var(--field-border);
 
-  background: var(--bg);
+  background: var(--field-bg);
   color: var(--text);
 
   font-size: 15px;
@@ -2605,11 +2881,111 @@ label.recipient-item {
   --ms-offline: #8c8f96;
   --ms-works: #175289;
 
+  /* Подписи, трассы и узлы схемы поверх города. */
+  --map-ink: var(--brand-deep);
+  --map-ink-soft: #3b6aa6;
+  --map-node: #ffffff;
+  --map-node-busy: #9fb8d8;
+  --map-house-number: #50627c;
+  --map-paper: #fbfcfe;
+  /* Ореол под подписями — цвет подложки карты, чтобы текст читался поверх улиц. */
+  --map-halo: rgba(251, 252, 254, 0.92);
+  /* Маршрут нарушителя: отдельный от состояний цвет — линия не спорит с тревогой участка. */
+  --map-route: #b0247a;
+  --map-route-ink: #ffffff;
+
   height: 100%;
   min-height: 300px;
 
   display: flex;
   flex-direction: column;
+}
+
+/* Тёмный город: те же роли цветов, приглушённые кварталы и светлые подписи. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .map {
+    --city-bg: #111b27;
+    --city-ground: #131e2b;
+    --city-building: #243449;
+    --city-building-line: #2f4360;
+    --city-road: #3d5f8f;
+    --city-road-core: #22344d;
+    --city-arterial: #4f7cc0;
+    --city-arterial-core: #2c4668;
+    --city-park: #1f3a2a;
+    --city-tree: #2e5a3c;
+    --city-water: #1d3d5c;
+    --city-label: #a9bfdc;
+    --city-dense: #1f2d3f;
+    --city-block: #1a2636;
+    --city-garden: #1d2e24;
+    --city-industrial: #232833;
+    --city-forest: #1f3d28;
+    --city-field: #22271d;
+    --city-tall: #2a3c55;
+    --city-tall-line: #3a5070;
+    --city-factory: #2a2933;
+    --city-factory-line: #3a3847;
+    --city-public: #2d2840;
+    --city-public-line: #423a5c;
+    --city-pitch: #2f5a33;
+    --city-path: #2b3240;
+    --city-rail: #6b7485;
+
+    --ms-works: #5b9bd8;
+
+    --map-ink: #d6e2f0;
+    --map-ink-soft: #7fa8d8;
+    --map-node: #172230;
+    --map-node-busy: #35577f;
+    --map-house-number: #8ea3bd;
+    --map-paper: #121c28;
+    --map-halo: rgba(18, 28, 40, 0.9);
+    --map-route: #ef6fb8;
+    --map-route-ink: #1a0f18;
+  }
+}
+
+:root[data-theme='dark'] .map {
+  --city-bg: #111b27;
+  --city-ground: #131e2b;
+  --city-building: #243449;
+  --city-building-line: #2f4360;
+  --city-road: #3d5f8f;
+  --city-road-core: #22344d;
+  --city-arterial: #4f7cc0;
+  --city-arterial-core: #2c4668;
+  --city-park: #1f3a2a;
+  --city-tree: #2e5a3c;
+  --city-water: #1d3d5c;
+  --city-label: #a9bfdc;
+  --city-dense: #1f2d3f;
+  --city-block: #1a2636;
+  --city-garden: #1d2e24;
+  --city-industrial: #232833;
+  --city-forest: #1f3d28;
+  --city-field: #22271d;
+  --city-tall: #2a3c55;
+  --city-tall-line: #3a5070;
+  --city-factory: #2a2933;
+  --city-factory-line: #3a3847;
+  --city-public: #2d2840;
+  --city-public-line: #423a5c;
+  --city-pitch: #2f5a33;
+  --city-path: #2b3240;
+  --city-rail: #6b7485;
+
+  --ms-works: #5b9bd8;
+
+  --map-ink: #d6e2f0;
+  --map-ink-soft: #7fa8d8;
+  --map-node: #172230;
+  --map-node-busy: #35577f;
+  --map-house-number: #8ea3bd;
+  --map-paper: #121c28;
+  --map-halo: rgba(18, 28, 40, 0.9);
+  --map-route: #ef6fb8;
+  --map-route-ink: #1a0f18;
 }
 
 .map-bar {
@@ -2727,10 +3103,10 @@ label.recipient-item {
 }
 
 .map-stage-schema {
-  background-color: #fbfcfe;
+  background-color: var(--map-paper);
   background-image:
-    linear-gradient(rgba(13, 35, 58, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(13, 35, 58, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(var(--ink-rgb), 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--ink-rgb), 0.05) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -2745,7 +3121,7 @@ label.recipient-item {
   padding: 6px 10px;
 
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--glass);
 
   font-size: 12px;
 
@@ -2900,7 +3276,7 @@ label.recipient-item {
 .city-street-names text,
 .city-house-numbers text {
   fill: var(--city-label);
-  stroke: rgba(255, 255, 255, 0.9);
+  stroke: var(--map-halo);
   paint-order: stroke;
   stroke-linejoin: round;
 }
@@ -2914,7 +3290,7 @@ label.recipient-item {
 }
 
 .city-house-numbers text {
-  fill: #50627c;
+  fill: var(--map-house-number);
 
   font-weight: 600;
   text-anchor: middle;
@@ -2961,17 +3337,102 @@ label.recipient-item {
 }
 
 .map-marker {
-  filter: drop-shadow(0 1px 1.5px rgba(13, 35, 58, 0.35));
+  filter: drop-shadow(0 1px 1.5px rgba(var(--shade-rgb), 0.35));
 }
 
 .map-marker.map-clickable:hover .map-marker-disc {
-  stroke: var(--brand-deep);
+  stroke: var(--map-ink);
 }
 
 .map-marker-ring {
   fill: #ffffff;
-  stroke: var(--brand-deep);
+  stroke: var(--map-ink);
   stroke-width: 2.5;
+}
+
+/* Маршрут нарушителя (ML/INTEGRATION.md §13.11): сработки охраны по порядку. */
+.map-route-halo {
+  fill: none;
+  stroke: var(--map-halo);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-route-line {
+  fill: none;
+  stroke: var(--map-route);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-route-arrow,
+.map-route-stop circle {
+  fill: var(--map-route);
+}
+
+.map-route-stop circle {
+  stroke: var(--map-halo);
+  stroke-width: 2;
+}
+
+.map-route-stop text {
+  fill: var(--map-route-ink);
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.map-route-stop.map-clickable:hover circle {
+  stroke: var(--map-ink);
+}
+
+.map-route-stop .map-route-time {
+  fill: var(--map-route);
+  font-size: 10px;
+  font-weight: 600;
+  text-anchor: start;
+  paint-order: stroke;
+  stroke: var(--map-halo);
+  stroke-width: 3;
+}
+
+.map-route-pulse {
+  fill: none;
+  stroke: var(--map-route);
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: map-route-pulse 1.6s ease-out infinite;
+}
+
+@keyframes map-route-pulse {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-route-pulse {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.map-route-badge .map-marker-disc {
+  fill: var(--map-route);
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.map-legend-route {
+  display: inline-block;
+  width: 22px;
+  border-top: 3px solid var(--map-route);
 }
 
 .map-glyph {
@@ -2996,8 +3457,8 @@ label.recipient-item {
 }
 
 .map-label {
-  fill: var(--brand-deep);
-  stroke: rgba(255, 255, 255, 0.92);
+  fill: var(--map-ink);
+  stroke: var(--map-halo);
   paint-order: stroke;
   stroke-linejoin: round;
 
@@ -3007,18 +3468,18 @@ label.recipient-item {
 
 .map-entrance-glyph circle {
   fill: #ffffff;
-  stroke: var(--brand-deep);
+  stroke: var(--map-ink);
   stroke-width: 2;
 }
 
 .map-entrance-glyph path {
-  stroke: var(--brand-deep);
+  stroke: var(--map-ink);
   stroke-width: 1.4;
 }
 
 .map-entrance-label {
-  fill: var(--brand-deep);
-  stroke: #ffffff;
+  fill: var(--map-ink);
+  stroke: var(--map-halo);
   stroke-width: 3;
   paint-order: stroke;
 
@@ -3032,7 +3493,7 @@ label.recipient-item {
 }
 
 .map-base-glyph rect {
-  fill: var(--brand-deep);
+  fill: var(--map-ink);
   stroke: #ffffff;
   stroke-width: 2;
 }
@@ -3047,7 +3508,7 @@ label.recipient-item {
 }
 
 .map-part-label {
-  fill: var(--brand-deep);
+  fill: var(--map-ink);
   stroke: #ffffff;
   stroke-width: 3;
   paint-order: stroke;
@@ -3092,7 +3553,7 @@ label.recipient-item {
 
 .map-trace .map-trace-halo,
 .map-corridor-halo {
-  stroke: rgba(255, 255, 255, 0.85);
+  stroke: var(--map-halo);
 }
 
 .map-trace .map-trace-line {
@@ -3104,7 +3565,7 @@ label.recipient-item {
 }
 
 .map-context .map-context-line {
-  stroke: rgba(13, 35, 58, 0.4);
+  stroke: rgba(var(--ink-rgb), 0.4);
 }
 
 .map-context:hover .map-context-line {
@@ -3126,19 +3587,19 @@ label.recipient-item {
 }
 
 .map-corridor {
-  stroke: var(--brand-deep);
+  stroke: var(--map-ink);
 }
 
 .map-corridor.map-corridor-branch {
-  stroke: #3b6aa6;
+  stroke: var(--map-ink-soft);
 }
 
 .map-pickets circle {
-  fill: var(--brand-deep);
+  fill: var(--map-ink);
 }
 
 .map-picket-labels text {
-  fill: var(--brand-deep);
+  fill: var(--map-ink);
   stroke: #ffffff;
   paint-order: stroke;
 
@@ -3170,7 +3631,7 @@ label.recipient-item {
 }
 
 .map-schema-part-label {
-  fill: var(--brand-deep);
+  fill: var(--map-ink);
   stroke: #ffffff;
   stroke-width: 3;
   paint-order: stroke;
@@ -3181,27 +3642,27 @@ label.recipient-item {
 
 .map-schema-links path {
   fill: none;
-  stroke: rgba(13, 35, 58, 0.28);
+  stroke: rgba(var(--ink-rgb), 0.28);
 }
 
 .map-schema-chains path {
   fill: none;
-  stroke: var(--brand-deep);
+  stroke: var(--map-ink);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .map-schema-chains .map-schema-branch {
-  stroke: #3b6aa6;
+  stroke: var(--map-ink-soft);
 }
 
 .map-schema-nodes circle {
-  fill: #ffffff;
-  stroke: var(--brand-deep);
+  fill: var(--map-node);
+  stroke: var(--map-ink);
 }
 
 .map-schema-nodes .map-schema-node-busy {
-  fill: #9fb8d8;
+  fill: var(--map-node-busy);
 }
 
 .map-schema-picket-labels text {
@@ -3214,7 +3675,7 @@ label.recipient-item {
 }
 
 .map-schema-chain-names text {
-  fill: var(--brand-deep);
+  fill: var(--map-ink);
   stroke: #ffffff;
   paint-order: stroke;
 
@@ -3227,7 +3688,7 @@ label.recipient-item {
 }
 
 .map-schema-sensor:hover circle:not(.map-marker-ring) {
-  stroke: var(--brand-deep);
+  stroke: var(--map-ink);
 }
 
 .map-schema-sensor text {
@@ -3259,14 +3720,14 @@ label.recipient-item {
 
   border: none;
   border-radius: 8px;
-  background: var(--brand-deep);
+  background: var(--map-ink);
   color: #ffffff;
 
   font-size: 20px;
   font-weight: 600;
   line-height: 1;
 
-  box-shadow: 0 2px 6px rgba(13, 35, 58, 0.25);
+  box-shadow: 0 2px 6px rgba(var(--shade-rgb), 0.25);
 
   cursor: pointer;
 }
@@ -3307,7 +3768,7 @@ label.recipient-item {
 
   border-radius: 11px;
   background: var(--surface);
-  box-shadow: 0 6px 22px rgba(13, 35, 58, 0.18);
+  box-shadow: 0 6px 22px rgba(var(--shade-rgb), 0.18);
 
   overflow-y: auto;
 }
@@ -3336,7 +3797,7 @@ label.recipient-item {
   line-height: 1.25;
   text-wrap: balance;
 
-  color: var(--brand-deep);
+  color: var(--map-ink);
 }
 
 .map-info-close {
@@ -3411,6 +3872,12 @@ label.recipient-item {
   padding-left: 16px;
 }
 
+.map-info-note {
+  font-size: 12px;
+
+  color: var(--text-faint);
+}
+
 .map-info-actions {
   display: flex;
   flex-wrap: wrap;
@@ -3483,14 +3950,14 @@ label.recipient-item {
   width: 22px;
   height: 0;
 
-  border-top: 3px dashed var(--brand-deep);
+  border-top: 3px dashed var(--map-ink);
 }
 
 .map-link-icon {
   width: 22px;
   height: 0;
 
-  border-top: 1px solid rgba(13, 35, 58, 0.45);
+  border-top: 1px solid rgba(var(--ink-rgb), 0.45);
 }
 
 .map-scale {

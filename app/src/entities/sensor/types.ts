@@ -1,7 +1,7 @@
 export interface Sensor {
   id: number; // внешний "ид_канала_данных"
   objectId: number;
-  picketId: string | null;
+  picketId: number | null;
   system: string;
   sType: string;
   tag: string | null;
@@ -11,10 +11,16 @@ export interface Sensor {
   // воронки tf-funnel (окно «Логи»), а не из карточки датчика.
 }
 
+// Пара «подсистема — тип», которая уже встречается у датчиков (GET /sensors/types).
+export interface SensorTypeOption {
+  system: string;
+  sType: string;
+}
+
 export interface CreateSensorRequest {
   id: number;
   objectId: number;
-  picketId?: string | null;
+  picketId?: number | null;
   system: string;
   sType: string;
   tag?: string | null;
@@ -22,7 +28,7 @@ export interface CreateSensorRequest {
 }
 
 export interface UpdateSensorRequest {
-  picketId?: string | null;
+  picketId?: number | null;
   name: string;
   tag?: string | null;
   isActive: boolean;

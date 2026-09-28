@@ -5,11 +5,19 @@ import { emitDataEvent } from '../../core/events/dataEvents';
 import { TaskSourceType } from '../../entities/task/types';
 import Button from '../../shared/ui/Button';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
+import ChoiceField from '../../shared/ui/ChoiceField';
 import { useSelectionStore } from '../../stores/selection/selectionStore';
 import { closeWindow } from '../../stores/workspace/workspaceCommands';
 import { useObjects } from '../objects/hooks/useObjects';
 import { useCreateTask } from './hooks/useCreateTask';
-import { newTaskNumber, taskSourceTypeOptions } from './taskLabels';
+import {
+  newTaskNumber,
+  TASK_PRIORITY_DEFAULT,
+  taskFaultClassificationOptions,
+  taskPriorityOptions,
+  taskSourceTypeOptions,
+  taskWorkTypeOptions,
+} from './taskLabels';
 
 function emptyForm(objectId: number | null) {
   return {
@@ -20,7 +28,7 @@ function emptyForm(objectId: number | null) {
     description: '',
     workType: '',
     faultClassification: '',
-    priority: '3',
+    priority: String(TASK_PRIORITY_DEFAULT),
   };
 }
 
@@ -35,6 +43,10 @@ export default function TaskCreateWindow() {
   const selectedObjectId = useSelectionStore(state => state.objectId);
   const { createTask, loading: creating, error } = useCreateTask();
   const [form, setForm] = useState<FormState>(() => emptyForm(selectedObjectId));
+
+  function setValue(field: keyof FormState) {
+    return (value: string) => setForm(current => ({ ...current, [field]: value }));
+  }
 
   function setField(field: keyof FormState) {
     return (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -102,23 +114,35 @@ export default function TaskCreateWindow() {
 
       <label>
         Вид работ
-        <input value={form.workType} onChange={setField('workType')} disabled={creating} />
+        <ChoiceField
+          value={form.workType}
+          onChange={setValue('workType')}
+          options={taskWorkTypeOptions}
+          placeholder="— не указан —"
+          disabled={creating}
+        />
       </label>
 
       <label>
         Классификация неисправности
-        <input value={form.faultClassification} onChange={setField('faultClassification')} disabled={creating} />
+        <ChoiceField
+          value={form.faultClassification}
+          onChange={setValue('faultClassification')}
+          options={taskFaultClassificationOptions}
+          placeholder="— не указана —"
+          disabled={creating}
+        />
       </label>
 
       <label>
         Приоритет
-        <input
-          type="number"
-          value={form.priority}
-          onChange={setField('priority')}
-          disabled={creating}
-          required
-        />
+        <select value={form.priority} onChange={setField('priority')} disabled={creating} required>
+          {taskPriorityOptions.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </label>
 
       {error && <div className="login-error">{error}</div>}

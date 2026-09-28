@@ -1,10 +1,12 @@
 import { PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { usePermission } from '../../core/permissions/permissionService';
+import { isPrimaryInstance, useWindowInstance } from '../../core/workspace/windowInstance';
+import { FactAlert } from '../../entities/factAlert/types';
 import { MonitoredObject } from '../../entities/object/types';
 import { taskRepository } from '../../entities/task/taskRepository';
 import EmptyState from '../../shared/ui/EmptyState';
-import { useSelectionStore } from '../../stores/selection/selectionStore';
+import { useWindowObject } from '../../stores/workspace/windowScope';
 import { useObjects } from '../objects/hooks/useObjects';
 import { City } from './city';
 import CityLayer from './CityLayer';
@@ -19,7 +21,9 @@ import {
   systems,
 } from './collector';
 import { Box, boundsOf, lineLength, lines, linePath, midpoint, point, Pt } from './geo';
+import { useLiveFacts } from './hooks/useLiveFacts';
 import { useMapLayer } from './hooks/useMapLayers';
+import IntruderRoute from './IntruderRoute';
 import MapInfoCard, { CityTrace, InfoTarget } from './MapInfoCard';
 import { useMapRequest } from './mapRequest';
 import {
@@ -31,6 +35,7 @@ import {
   markerState,
   markerStateLabels,
   markerStateOrder,
+  RouteBadge,
   StateBadge,
   StatusMarker,
 } from './MapSymbols';
@@ -82,8 +87,8 @@ function niceStep(raw: number): number {
 // Клик по любому объекту открывает карточку сведений (MapInfoCard).
 export default function MapWindow() {
   const { objects, loading: objectsLoading, error: objectsError } = useObjects();
-  const selectedId = useSelectionStore(state => state.objectId);
-  const setSelectedId = useSelectionStore(state => state.setObjectId);
+  // Первая карта следует общему выбору, копия — своему объекту.
+  const [selectedId, setSelectedId] = useWindowObject();
   const canTasks = usePermission('tasks', 'read');
 
   const byId = useMemo(() => new Map(objects.map(object => [object.id, object])), [objects]);
@@ -167,6 +172,46 @@ export default function MapWindow() {
     });
     return all;
   }, [works, byId]);
+
+  // Идущие тревоги по факту и эпизод, чей маршрут попросили показать из журнала.
+  const liveFacts = useLiveFacts();
+  const [pinnedRoute, setPinnedRoute] = useState<FactAlert | null>(null);
+  const [routeFocus, setRouteFocus] = useState<FactAlert | null>(null);
+
+  // Коллектор объекта: у участка — родитель, у коллектора — он сам.
+  const collectorOf = useCallback(
+    (objectId: number): number | null => {
+      const object = byId.get(objectId);
+      if (!object) {
+        return null;
+      }
+      return object.level === 2 ? object.id : object.parentId;
+    },
+    [byId]
+  );
+
+  const routes = useMemo(() => {
+    const list = liveFacts.filter(alert => alert.type === 'intrusion' && alert.route.length > 0);
+    if (pinnedRoute && pinnedRoute.route.length > 0 && !list.some(alert => alert.id === pinnedRoute.id)) {
+      list.push(pinnedRoute);
+    }
+    return list;
+  }, [liveFacts, pinnedRoute]);
+  const collectorRoutes = useMemo(
+    () => routes.filter(alert => collectorId !== null && collectorOf(alert.objectId) === collectorId),
+    [routes, collectorId, collectorOf]
+  );
+  // Коллекторы, где нарушитель ещё в пути, — метка на карте района.
+  const routeCollectors = useMemo(
+    () =>
+      new Set(
+        routes
+          .filter(alert => alert.live)
+          .map(alert => collectorOf(alert.objectId))
+          .filter((id): id is number => id !== null)
+      ),
+    [routes, collectorOf]
+  );
 
   // ---------------------------------------------------------------- кадр
 
@@ -264,6 +309,25 @@ export default function MapWindow() {
     setMode('object');
     setFocus(part.line ?? [part.at]);
   }, [pendingFocus, collector.parts]);
+
+  // Фокус на маршруте ждёт датчики коллектора (слой 3). Датчиков маршрута в
+  // слое нет — приближаем к самому участку.
+  useEffect(() => {
+    if (!routeFocus || l3.loading || collectorId === null || collectorId !== collectorOf(routeFocus.objectId)) {
+      return;
+    }
+    const at = routeFocus.route.flatMap(point => {
+      const sensor = collector.sensorById.get(point.sensorId);
+      return sensor ? [sensor.at] : [];
+    });
+    setRouteFocus(null);
+    if (at.length > 0) {
+      setMode('object');
+      setFocus(at);
+    } else if ((byId.get(routeFocus.objectId)?.level ?? 0) > 2) {
+      setPendingFocus(routeFocus.objectId);
+    }
+  }, [routeFocus, l3.loading, collectorId, collectorOf, collector.sensorById, byId]);
 
   // Видимая область: viewBox вписан в окно (meet), лишнее — по краям.
   const unit = box ? Math.max(box.w / size.w, box.h / size.h) : 1;
@@ -401,17 +465,27 @@ export default function MapWindow() {
   // «Карта объекта» из заявки — просьба с номером, исполняется и повторно.
   const requestSeq = useMapRequest(state => state.seq);
   const requestId = useMapRequest(state => state.objectId);
+  const requestRoute = useMapRequest(state => state.route);
   const requestRef = useRef(0);
+  // «Показать на карте» из других окон исполняет первая карта; копия держит
+  // свой объект.
+  const instance = useWindowInstance();
+  const takesRequests = !instance || isPrimaryInstance(instance.windowId);
   useEffect(() => {
-    if (requestSeq === requestRef.current || requestId === null) {
+    if (!takesRequests || requestSeq === requestRef.current || requestId === null) {
       return;
     }
     const object = byId.get(requestId);
     if (object) {
       requestRef.current = requestSeq;
       navigate(object);
+      setPinnedRoute(requestRoute);
+      if (requestRoute && requestRoute.route.length > 0) {
+        setPendingFocus(null);
+        setRouteFocus(requestRoute);
+      }
     }
-  }, [requestSeq, requestId, byId, navigate]);
+  }, [takesRequests, requestSeq, requestId, requestRoute, byId, navigate]);
 
   const guarded =
     <T,>(action: (value: T) => void) =>
@@ -436,6 +510,8 @@ export default function MapWindow() {
   });
 
   const clickInfo = guarded((target: InfoTarget) => setInfo(target));
+
+  const clickRouteSensor = guarded((id: number) => setInfo({ type: 'sensor', id }));
 
   function showOnMap(at: Pt) {
     setMode('object');
@@ -602,6 +678,16 @@ export default function MapWindow() {
                         title={`${object?.name ?? trace.name} — ${markerStateLabels[state]}`}
                         onClick={() => clickCollector(trace.id)}
                       />
+                      {routeCollectors.has(trace.id) && (
+                        <g
+                          className="map-clickable"
+                          transform={`translate(${trace.marker[0] + 14 * unit} ${trace.marker[1] - 14 * unit}) scale(${unit * 0.8})`}
+                          onClick={() => clickCollector(trace.id)}
+                        >
+                          <RouteBadge />
+                          <title>{object?.name ?? trace.name} — нарушитель в пути</title>
+                        </g>
+                      )}
                       <text
                         className="map-label"
                         x={trace.marker[0]}
@@ -628,9 +714,11 @@ export default function MapWindow() {
                 view={view}
                 selectedId={selectedId}
                 info={info}
+                routes={collectorRoutes}
                 onCollector={clickCollector}
                 onObject={clickObject}
                 onInfo={clickInfo}
+                onRouteSensor={clickRouteSensor}
               />
             )}
 
@@ -643,8 +731,10 @@ export default function MapWindow() {
                 unit={unit}
                 view={view}
                 info={info}
+                routes={collectorRoutes}
                 onObject={clickObject}
                 onInfo={clickInfo}
+                onRouteSensor={clickRouteSensor}
               />
             )}
           </svg>
@@ -676,6 +766,7 @@ export default function MapWindow() {
             city={city}
             cityTraces={cityTraces}
             works={worksAll}
+            facts={liveFacts}
             onClose={() => setInfo(null)}
             onOpenCollector={openCollector}
             onSelect={select}
@@ -699,6 +790,12 @@ export default function MapWindow() {
               <span className="map-link-icon" aria-hidden="true" />
               связь с пикетом
             </li>
+            {collectorRoutes.length > 0 && (
+              <li>
+                <span className="map-legend-route" aria-hidden="true" />
+                маршрут нарушителя
+              </li>
+            )}
           </ul>
         ) : (
           <ul className="map-legend" aria-label="Состояние объектов">
@@ -712,6 +809,20 @@ export default function MapWindow() {
               <span className="map-dash-icon" aria-hidden="true" />
               коридор коллектора
             </li>
+            {mode === 'city' && routeCollectors.size > 0 && (
+              <li>
+                <svg className="map-legend-icon" viewBox="-12 -12 24 24" aria-hidden="true">
+                  <RouteBadge />
+                </svg>
+                нарушитель в пути
+              </li>
+            )}
+            {mode === 'object' && collectorRoutes.length > 0 && (
+              <li>
+                <span className="map-legend-route" aria-hidden="true" />
+                маршрут нарушителя
+              </li>
+            )}
             {mode === 'object' && (
               <>
                 <li>
@@ -757,9 +868,11 @@ interface ObjectOverlayProps {
   view: Box;
   selectedId: number | null;
   info: InfoTarget | null;
+  routes: FactAlert[];
   onCollector: (id: number) => void;
   onObject: (id: number) => void;
   onInfo: (target: InfoTarget) => void;
+  onRouteSensor: (sensorId: number) => void;
 }
 
 function ObjectOverlay({
@@ -772,9 +885,11 @@ function ObjectOverlay({
   view,
   selectedId,
   info,
+  routes,
   onCollector,
   onObject,
   onInfo,
+  onRouteSensor,
 }: ObjectOverlayProps) {
   const collector = collectorId !== null ? byId.get(collectorId) : undefined;
   const corridorD = model.corridors.map(corridor => linePath(corridor.points)).join('');
@@ -925,6 +1040,17 @@ function ObjectOverlay({
           </g>
         ))}
 
+      {routes.map(alert => (
+        <IntruderRoute
+          key={alert.id}
+          alert={alert}
+          objectName={byId.get(alert.objectId)?.name ?? `#${alert.objectId}`}
+          position={id => model.sensorById.get(id)?.at ?? null}
+          unit={unit}
+          onSensor={onRouteSensor}
+        />
+      ))}
+
       {model.parts.map(part => {
         const object = byId.get(part.id);
         const state = markerState(object, works);
@@ -1006,8 +1132,10 @@ interface SchemaOverlayProps {
   unit: number;
   view: Box;
   info: InfoTarget | null;
+  routes: FactAlert[];
   onObject: (id: number) => void;
   onInfo: (target: InfoTarget) => void;
+  onRouteSensor: (sensorId: number) => void;
 }
 
 // Пороги схемы — в метрах на экранный пиксель.
@@ -1037,7 +1165,19 @@ function overlaps(a: Box, b: Box): boolean {
   return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h;
 }
 
-function SchemaOverlay({ schema, model, byId, works, unit, view, info, onObject, onInfo }: SchemaOverlayProps) {
+function SchemaOverlay({
+  schema,
+  model,
+  byId,
+  works,
+  unit,
+  view,
+  info,
+  routes,
+  onObject,
+  onInfo,
+  onRouteSensor,
+}: SchemaOverlayProps) {
   // Участки-перегоны — полосой вдоль коридора. Полосы, которые лежат на
   // одном перегоне, разводим по дорожкам: 0, +1, −1, +2…
   const bands = useMemo(() => {
@@ -1225,6 +1365,21 @@ function SchemaOverlay({ schema, model, byId, works, unit, view, info, onObject,
           })}
         </g>
       )}
+
+      {/* маршрут — по позициям датчиков схемы, даже когда сами датчики скрыты */}
+      {routes.map(alert => (
+        <IntruderRoute
+          key={alert.id}
+          alert={alert}
+          objectName={byId.get(alert.objectId)?.name ?? `#${alert.objectId}`}
+          position={id => {
+            const slot = schema.slots.get(id);
+            return slot ? sensorAt(slot) : null;
+          }}
+          unit={unit}
+          onSensor={onRouteSensor}
+        />
+      ))}
 
       {bands.map(({ part, line, lane }) => {
         const object = byId.get(part.id);

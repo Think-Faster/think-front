@@ -60,7 +60,7 @@ export interface TaskReturn {
 }
 
 export interface WorkTask extends WorkTaskListItem {
-  picketId: string | null;
+  picketId: number | null;
   description: string | null;
   workType: string | null;
   faultClassification: string | null;
@@ -81,7 +81,7 @@ export interface CreateWorkTaskRequest {
   number: string;
   sourceType: TaskSourceType;
   objectId: number;
-  picketId?: string | null;
+  picketId?: number | null;
   topic: string;
   description?: string | null;
   workType?: string | null;

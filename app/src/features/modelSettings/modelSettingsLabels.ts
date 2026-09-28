@@ -1,13 +1,15 @@
-import { PredictionType } from '../../entities/prediction/types';
+import { FORECAST_TYPES, PredictionType } from '../../entities/prediction/types';
 import { IgnoredRangeScope } from '../../entities/ignoredRange/types';
 import { WorkSource } from '../../entities/workSchedule/types';
 import { predictionTypeLabels } from '../predictions/predictionLabels';
 
 export { predictionTypeLabels as coefficientTypeLabels };
 
-export const coefficientTypeOptions: { value: PredictionType; label: string }[] = (
-  Object.entries(predictionTypeLabels) as [PredictionType, string][]
-).map(([value, label]) => ({ value, label }));
+// Коэффициенты — только у типов, которые модель прогнозирует.
+export const coefficientTypeOptions: { value: PredictionType; label: string }[] = FORECAST_TYPES.map(value => ({
+  value,
+  label: predictionTypeLabels[value],
+}));
 
 export const ignoredRangeScopeLabels: Record<IgnoredRangeScope, string> = {
   all: 'всё',

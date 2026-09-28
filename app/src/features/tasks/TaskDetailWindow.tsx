@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
 
 import { usePermission } from '../../core/permissions/permissionService';
 import { taskRepository } from '../../entities/task/taskRepository';
@@ -8,8 +7,7 @@ import Badge from '../../shared/ui/Badge';
 import Button from '../../shared/ui/Button';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
 import EmptyState from '../../shared/ui/EmptyState';
-import { useSelectionStore } from '../../stores/selection/selectionStore';
-import { openWindow } from '../../stores/workspace/workspaceCommands';
+import { openWindowWithObject, useWindowEntityId } from '../../stores/workspace/windowScope';
 import { showObjectOnMap } from '../map/mapRequest';
 import { useObjects } from '../objects/hooks/useObjects';
 import { usePredictions } from '../predictions/hooks/usePredictions';
@@ -30,7 +28,8 @@ import {
 const engineerOnSite: WorkTaskStatus[] = ['assigned', 'engineerWorking', 'returnedToWork'];
 
 export default function TaskDetailWindow() {
-  const params = useParams<{ id: string }>();
+  // Первая карточка — заявка из адреса /tasks/:id, копия — своя.
+  const taskId = useWindowEntityId();
   const { objects } = useObjects();
   const { users } = useUsers();
 
@@ -49,7 +48,7 @@ export default function TaskDetailWindow() {
     start,
     close,
     cancel,
-  } = useTask(params.id);
+  } = useTask(taskId);
 
   // Основанием заявки может быть только прогноз по её объекту.
   const { predictions } = usePredictions(task?.objectId);
@@ -66,7 +65,6 @@ export default function TaskDetailWindow() {
   const canReadings = usePermission('readings', 'read');
   // Карта — окно «Карта» (objects:read): техник видит объект заявки, его входы и схему.
   const canMap = usePermission('objects', 'read');
-  const setSelectedId = useSelectionStore(state => state.setObjectId);
 
   const [predictionId, setPredictionId] = useState('');
   const [isPrimary, setIsPrimary] = useState(false);
@@ -111,8 +109,7 @@ export default function TaskDetailWindow() {
   const attachable = predictions.filter(prediction => !attachedIds.includes(prediction.id));
 
   function openLogs() {
-    setSelectedId(task!.objectId);
-    openWindow('logs');
+    openWindowWithObject('logs', task!.objectId);
   }
 
   function userName(userId: string): string {

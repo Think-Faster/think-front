@@ -3,7 +3,7 @@ import { endpoints } from '../../core/api/endpoints';
 import { PagedResult, PageRequest } from '../../core/api/types';
 import { CreateObjectRequest, MapLayer, MonitoredObject, UpdateObjectRequest } from './types';
 
-// Пикеты (/objects/{id}/pickets) сюда не входят; слои карты читает окно
+// Пикеты (/objects/{id}/pickets) — отдельная сущность entities/picket; слои карты читает окно
 // «Карта» (features/map) и рисует их своим SVG, без картографической
 // библиотеки — координаты схемы в метрах, не географические.
 export const objectRepository = {

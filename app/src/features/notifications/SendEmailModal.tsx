@@ -6,7 +6,7 @@ import Button from '../../shared/ui/Button';
 import Modal from '../../shared/ui/Modal';
 import { useUsers } from '../users/hooks/useUsers';
 import { useSendEmail } from './hooks/useSendEmail';
-import { emailSendStatusLabels, emailSendStatusTone } from './notificationLabels';
+import { emailKindOptions, emailSendStatusLabels, emailSendStatusTone } from './notificationLabels';
 
 interface SendEmailModalProps {
   onClose: () => void;
@@ -159,8 +159,15 @@ export default function SendEmailModal({ onClose }: SendEmailModalProps) {
           </label>
 
           <label>
-            Тип (необязательно, например fact/forecast, только для логов)
-            <input value={kind} onChange={event => setKind(event.target.value)} disabled={sending} />
+            Тип (необязательно, только для логов)
+            <select value={kind} onChange={event => setKind(event.target.value)} disabled={sending}>
+              <option value="">— не указан —</option>
+              {emailKindOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
 
           {error && <div className="login-error">{error}</div>}
