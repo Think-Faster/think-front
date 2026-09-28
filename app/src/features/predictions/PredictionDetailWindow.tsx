@@ -1,27 +1,41 @@
 import { FormEvent, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { usePermission } from '../../core/permissions/permissionService';
 import Badge from '../../shared/ui/Badge';
 import Button from '../../shared/ui/Button';
 import EmptyState from '../../shared/ui/EmptyState';
 import ProgressBar from '../../shared/ui/ProgressBar';
+import { useSelectionStore } from '../../stores/selection/selectionStore';
+import { openWindow } from '../../stores/workspace/workspaceCommands';
+import { showObjectOnMap } from '../map/mapRequest';
 import { useObjects } from '../objects/hooks/useObjects';
 import { usePrediction } from './hooks/usePrediction';
-import { formatProbability, predictionTypeLabels, probabilityTone } from './predictionLabels';
+import {
+  formatProbability,
+  predictionTypeLabels,
+  probabilityTone,
+  REJECT_REASON_OTHER,
+  rejectReasonOptions,
+} from './predictionLabels';
 
 export default function PredictionDetailWindow() {
   const params = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { objects } = useObjects();
-  const { prediction, loading, error, decide, deciding, decisionError } = usePrediction(params.id);
+  const { prediction, loading, error, decide, takeToTask, deciding, decisionError } = usePrediction(params.id);
   const canDecide = usePermission('predictions', 'update');
+  const canCreateTask = usePermission('tasks', 'create');
+  const canMap = usePermission('objects', 'read');
+  const canReadings = usePermission('readings', 'read');
+  const setSelectedId = useSelectionStore(state => state.setObjectId);
 
   const [rejecting, setRejecting] = useState(false);
   const [reasonCode, setReasonCode] = useState('');
   const [comment, setComment] = useState('');
 
-  if (loading) {
-    return null;
+  if (loading && !prediction) {
+    return <EmptyState>Загрузка…</EmptyState>;
   }
 
   if (error) {
@@ -34,6 +48,18 @@ export default function PredictionDetailWindow() {
 
   const object = objects.find(item => item.id === prediction.objectId);
   const tone = probabilityTone(prediction.probability);
+
+  async function handleTake() {
+    const taskId = await takeToTask();
+    if (taskId) {
+      navigate(`/tasks/${taskId}`);
+    }
+  }
+
+  function openLogs() {
+    setSelectedId(prediction!.objectId);
+    openWindow('logs');
+  }
 
   async function handleReject(event: FormEvent) {
     event.preventDefault();
@@ -57,7 +83,17 @@ export default function PredictionDetailWindow() {
 
       <p className="pd-title">{prediction.topic}</p>
 
-      <p className="pd-loc">{object ? object.name : `Объект #${prediction.objectId}`}</p>
+      <p className="pd-loc">
+        {object ? object.name : `Объект #${prediction.objectId}`} ·{' '}
+        {new Date(prediction.hourEnd).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
+      </p>
+
+      {(canMap || canReadings) && (
+        <div className="pd-actions">
+          {canMap && <Button onClick={() => showObjectOnMap(prediction.objectId)}>Карта объекта</Button>}
+          {canReadings && <Button onClick={openLogs}>Логи объекта</Button>}
+        </div>
+      )}
 
       <div className="pd-prob">
         <span className="num">{formatProbability(prediction.probability)}</span>
@@ -110,7 +146,11 @@ export default function PredictionDetailWindow() {
             Заглушить
           </Button>
 
-          <Button variant="primary" disabled={deciding} onClick={() => decide({ action: 'take' })}>
+          <Button
+            variant="primary"
+            disabled={deciding}
+            onClick={canCreateTask ? handleTake : () => decide({ action: 'take' })}
+          >
             Взять в работу
           </Button>
         </div>
@@ -119,18 +159,30 @@ export default function PredictionDetailWindow() {
       {rejecting && (
         <form className="login-form" onSubmit={handleReject}>
           <label>
-            Код причины
-            <input
+            Причина
+            <select
               value={reasonCode}
               onChange={event => setReasonCode(event.target.value)}
               disabled={deciding}
               required
-            />
+            >
+              <option value="">— выбрать —</option>
+              {rejectReasonOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label>
             Комментарий
-            <input value={comment} onChange={event => setComment(event.target.value)} disabled={deciding} />
+            <input
+              value={comment}
+              onChange={event => setComment(event.target.value)}
+              disabled={deciding}
+              required={reasonCode === REJECT_REASON_OTHER}
+            />
           </label>
 
           <div className="pd-actions">

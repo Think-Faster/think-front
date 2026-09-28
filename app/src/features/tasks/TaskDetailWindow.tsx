@@ -15,9 +15,12 @@ import { usePredictions } from '../predictions/hooks/usePredictions';
 import { useUsers } from '../users/hooks/useUsers';
 import { useTask } from './hooks/useTask';
 import {
+  assignmentStatusLabel,
   isTaskActive,
   returnTargetTypeLabels,
   returnTargetTypeOptions,
+  taskResultLabel,
+  taskResultOptions,
   taskSourceTypeLabels,
   taskStatusLabels,
   taskStatusTone,
@@ -28,7 +31,6 @@ const engineerOnSite: WorkTaskStatus[] = ['assigned', 'engineerWorking', 'return
 export default function TaskDetailWindow() {
   const params = useParams<{ id: string }>();
   const { objects } = useObjects();
-  const { predictions } = usePredictions();
   const { users } = useUsers();
 
   const {
@@ -44,6 +46,10 @@ export default function TaskDetailWindow() {
     addReport,
     addReturn,
   } = useTask(params.id);
+
+  // Основанием заявки может быть только прогноз по её объекту.
+  const { predictions } = usePredictions(task?.objectId);
+  const activeUsers = users.filter(user => user.isActive);
 
   const canAct = usePermission('tasks', 'update');
   const canReadings = usePermission('readings', 'read');
@@ -66,8 +72,8 @@ export default function TaskDetailWindow() {
   const [returnUserId, setReturnUserId] = useState('');
   const [returnComment, setReturnComment] = useState('');
 
-  if (loading) {
-    return null;
+  if (loading && !task) {
+    return <EmptyState>Загрузка…</EmptyState>;
   }
 
   if (error) {
@@ -83,6 +89,8 @@ export default function TaskDetailWindow() {
   const canEdit = canAct && active;
   // Инженеру показания объекта открыты, пока он на заявке (BFF /readings/scope).
   const canLogs = canReadings || engineerOnSite.includes(task.status);
+  const attachedIds = task.predictions.filter(item => !item.detachedAt).map(item => item.predictionId);
+  const attachable = predictions.filter(prediction => !attachedIds.includes(prediction.id));
 
   function openLogs() {
     setSelectedId(task!.objectId);
@@ -229,7 +237,7 @@ export default function TaskDetailWindow() {
             Прогноз
             <select value={predictionId} onChange={event => setPredictionId(event.target.value)}>
               <option value="">— выбрать —</option>
-              {predictions.map(prediction => (
+              {attachable.map(prediction => (
                 <option key={prediction.id} value={prediction.id}>
                   {prediction.topic}
                 </option>
@@ -263,7 +271,7 @@ export default function TaskDetailWindow() {
             {assignment.comment ? ` · ${assignment.comment}` : ''}
           </span>
 
-          <span className="d">{assignment.status}</span>
+          <span className="d">{assignmentStatusLabel(assignment.status)}</span>
         </div>
       ))}
 
@@ -273,7 +281,7 @@ export default function TaskDetailWindow() {
             Инженер
             <select value={engineerId} onChange={event => setEngineerId(event.target.value)}>
               <option value="">— выбрать —</option>
-              {users.map(user => (
+              {activeUsers.map(user => (
                 <option key={user.id} value={user.id}>
                   {user.lastName} {user.firstName}
                 </option>
@@ -299,7 +307,7 @@ export default function TaskDetailWindow() {
       {task.reports.map(report => (
         <div className="hist-item" key={report.id}>
           <span>
-            {report.resultCode}
+            {taskResultLabel(report.resultCode)}
             {report.worksDone ? ` · ${report.worksDone}` : ''}
           </span>
 
@@ -310,8 +318,15 @@ export default function TaskDetailWindow() {
       {canEdit && (
         <form className="login-form" onSubmit={handleReport}>
           <label>
-            Код результата
-            <input value={resultCode} onChange={event => setResultCode(event.target.value)} required />
+            Результат
+            <select value={resultCode} onChange={event => setResultCode(event.target.value)} required>
+              <option value="">— выбрать —</option>
+              {taskResultOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label>
@@ -362,7 +377,7 @@ export default function TaskDetailWindow() {
               Диспетчер
               <select value={returnUserId} onChange={event => setReturnUserId(event.target.value)}>
                 <option value="">— выбрать —</option>
-                {users.map(user => (
+                {activeUsers.map(user => (
                   <option key={user.id} value={user.id}>
                     {user.lastName} {user.firstName}
                   </option>

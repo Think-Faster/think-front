@@ -9,11 +9,11 @@ import { useSelectionStore } from '../../stores/selection/selectionStore';
 import { closeWindow } from '../../stores/workspace/workspaceCommands';
 import { useObjects } from '../objects/hooks/useObjects';
 import { useCreateTask } from './hooks/useCreateTask';
-import { taskSourceTypeOptions } from './taskLabels';
+import { newTaskNumber, taskSourceTypeOptions } from './taskLabels';
 
 function emptyForm(objectId: number | null) {
   return {
-    number: '',
+    number: newTaskNumber(),
     sourceType: 'call' as TaskSourceType,
     objectId: objectId === null ? '' : String(objectId),
     topic: '',
@@ -27,7 +27,7 @@ function emptyForm(objectId: number | null) {
 type FormState = ReturnType<typeof emptyForm>;
 
 // «Создать заявку» — кнопка-действие сайдбара. Объект подставляется из
-// выбранного на карте. После создания окно закрывается, открывается карточка
+// выбранного на карте, номер — сгенерированный (можно заменить своим). После создания окно закрывается, открывается карточка
 // новой заявки, «Дневник диспетчера» перечитывается.
 export default function TaskCreateWindow() {
   const navigate = useNavigate();

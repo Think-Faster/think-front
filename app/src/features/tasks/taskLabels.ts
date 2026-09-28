@@ -65,3 +65,36 @@ export const returnTargetTypeLabels: Record<ReturnTargetType, string> = {
 export const returnTargetTypeOptions: { value: ReturnTargetType; label: string }[] = (
   Object.entries(returnTargetTypeLabels) as [ReturnTargetType, string][]
 ).map(([value, label]) => ({ value, label }));
+
+// Справочник результата отчёта — docs/backend/домены-и-сущности.md (справочники).
+export const taskResultOptions: { value: string; label: string }[] = [
+  { value: 'confirmed_fixed', label: 'Подтверждено и устранено' },
+  { value: 'confirmed', label: 'Подтверждено' },
+  { value: 'revisit', label: 'Требуется повторный выезд' },
+  { value: 'not_confirmed', label: 'Не подтверждено' },
+  { value: 'handed_over', label: 'Передано смежникам' },
+];
+
+export function taskResultLabel(code: string): string {
+  return taskResultOptions.find(option => option.value === code)?.label ?? code;
+}
+
+// BFF пишет статус назначения строкой; сейчас это только "assigned".
+const assignmentStatusLabels: Record<string, string> = {
+  assigned: 'назначен',
+};
+
+export function assignmentStatusLabel(status: string): string {
+  return assignmentStatusLabels[status] ?? status;
+}
+
+// Номер новой заявки: BFF требует уникальный (409 duplicate_code), а справочника
+// нумерации нет — берём дату и время до секунды и короткий хвост против совпадений.
+export function newTaskNumber(now = new Date()): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const date = `${String(now.getFullYear()).slice(2)}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const tail = Math.floor(Math.random() * 36 * 36).toString(36).padStart(2, '0').toUpperCase();
+
+  return `З-${date}-${time}-${tail}`;
+}
