@@ -1,9 +1,12 @@
 import { ReactNode } from 'react';
 
 import { usePermission } from '../../core/permissions/permissionService';
+import { FactAlert } from '../../entities/factAlert/types';
 import { MonitoredObject } from '../../entities/object/types';
 import Button from '../../shared/ui/Button';
 import { openWindowWithObject } from '../../stores/workspace/windowScope';
+import { alertGroupLabels, factSummary, predictionTypeLabels } from '../predictions/predictionLabels';
+import { channelHint } from '../sensors/sensorLabels';
 import { City } from './city';
 import { CollectorModel, fallbackSystem, roleLabels, systemByName } from './collector';
 import { Geometry, lineLength, lines, midpoint, point, Pt } from './geo';
@@ -29,6 +32,8 @@ interface MapInfoCardProps {
   city: City | null;
   cityTraces: CityTrace[];
   works: Set<number>;
+  // Идущие тревоги по факту (/fact-alerts?live=true).
+  facts: FactAlert[];
   onClose: () => void;
   onOpenCollector: (id: number, mode: MapMode) => void;
   onSelect: (id: number) => void;
@@ -63,6 +68,24 @@ function formatMeters(meters: number): string {
   return meters >= 1000 ? `${(meters / 1000).toFixed(2).replace('.', ',')} км` : `${Math.round(meters)} м`;
 }
 
+function FactList({ facts, byId, withObject }: { facts: FactAlert[]; byId: Map<number, MonitoredObject>; withObject: boolean }) {
+  return (
+    <ul className="map-info-list">
+      {facts.map(alert => {
+        const summary = factSummary(alert);
+        const since = new Date(alert.startedAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+        return (
+          <li key={alert.id}>
+            {withObject && `${byId.get(alert.objectId)?.name ?? `#${alert.objectId}`}: `}
+            <b>{predictionTypeLabels[alert.type]}</b> · {alertGroupLabels[alert.group]} · с {since}
+            {summary && <div className="map-info-note">{summary}</div>}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
@@ -81,6 +104,7 @@ export default function MapInfoCard({
   city,
   cityTraces,
   works,
+  facts,
   onClose,
   onOpenCollector,
   onSelect,
@@ -150,6 +174,18 @@ export default function MapInfoCard({
       rows.push(
         <Row key="pk" label="Пикеты">
           {part.pkFrom === part.pkTo ? `ПК${part.pkFrom}` : `ПК${part.pkFrom} — ПК${part.pkTo}`}
+        </Row>
+      );
+    }
+
+    // Что идёт по факту: у коллектора — и на его участках.
+    const objectFacts = facts.filter(
+      alert => alert.objectId === object.id || (object.level === 2 && byId.get(alert.objectId)?.parentId === object.id)
+    );
+    if (objectFacts.length > 0) {
+      rows.push(
+        <Row key="facts" label="По факту">
+          <FactList facts={objectFacts} byId={byId} withObject={object.level === 2} />
         </Row>
       );
     }
@@ -251,6 +287,7 @@ export default function MapInfoCard({
     const picket = sensor.picketId !== null ? model.picketById.get(sensor.picketId) : undefined;
     title = sensor.name || sensor.stype;
     subtitle = 'Датчик';
+    const hint = sensor.name ? channelHint(sensor.name) : undefined;
     head = (
       <div className="map-info-state">
         <span className="map-sys-icon" style={{ background: system.color }} aria-hidden="true">
@@ -259,6 +296,13 @@ export default function MapInfoCard({
         <span>{sensor.system}</span>
       </div>
     );
+    if (hint) {
+      rows.push(
+        <Row key="hint" label="Обозначения">
+          {hint}
+        </Row>
+      );
+    }
     rows.push(
       <Row key="stype" label="Тип">
         {sensor.stype}

@@ -1795,6 +1795,14 @@ button.queue-item {
     monospace;
 }
 
+.queue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  margin-top: 8px;
+}
+
 .badge {
   font-size: 10.5px;
   font-weight: 600;
@@ -2882,6 +2890,9 @@ label.recipient-item {
   --map-paper: #fbfcfe;
   /* Ореол под подписями — цвет подложки карты, чтобы текст читался поверх улиц. */
   --map-halo: rgba(251, 252, 254, 0.92);
+  /* Маршрут нарушителя: отдельный от состояний цвет — линия не спорит с тревогой участка. */
+  --map-route: #b0247a;
+  --map-route-ink: #ffffff;
 
   height: 100%;
   min-height: 300px;
@@ -2929,7 +2940,9 @@ label.recipient-item {
     --map-node-busy: #35577f;
     --map-house-number: #8ea3bd;
     --map-paper: #121c28;
-  --map-halo: rgba(18, 28, 40, 0.9);
+    --map-halo: rgba(18, 28, 40, 0.9);
+    --map-route: #ef6fb8;
+    --map-route-ink: #1a0f18;
   }
 }
 
@@ -2971,6 +2984,8 @@ label.recipient-item {
   --map-house-number: #8ea3bd;
   --map-paper: #121c28;
   --map-halo: rgba(18, 28, 40, 0.9);
+  --map-route: #ef6fb8;
+  --map-route-ink: #1a0f18;
 }
 
 .map-bar {
@@ -3333,6 +3348,91 @@ label.recipient-item {
   fill: #ffffff;
   stroke: var(--map-ink);
   stroke-width: 2.5;
+}
+
+/* Маршрут нарушителя (ML/INTEGRATION.md §13.11): сработки охраны по порядку. */
+.map-route-halo {
+  fill: none;
+  stroke: var(--map-halo);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-route-line {
+  fill: none;
+  stroke: var(--map-route);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-route-arrow,
+.map-route-stop circle {
+  fill: var(--map-route);
+}
+
+.map-route-stop circle {
+  stroke: var(--map-halo);
+  stroke-width: 2;
+}
+
+.map-route-stop text {
+  fill: var(--map-route-ink);
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.map-route-stop.map-clickable:hover circle {
+  stroke: var(--map-ink);
+}
+
+.map-route-stop .map-route-time {
+  fill: var(--map-route);
+  font-size: 10px;
+  font-weight: 600;
+  text-anchor: start;
+  paint-order: stroke;
+  stroke: var(--map-halo);
+  stroke-width: 3;
+}
+
+.map-route-pulse {
+  fill: none;
+  stroke: var(--map-route);
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: map-route-pulse 1.6s ease-out infinite;
+}
+
+@keyframes map-route-pulse {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-route-pulse {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.map-route-badge .map-marker-disc {
+  fill: var(--map-route);
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.map-legend-route {
+  display: inline-block;
+  width: 22px;
+  border-top: 3px solid var(--map-route);
 }
 
 .map-glyph {
@@ -3770,6 +3870,12 @@ label.recipient-item {
 .map-info-list {
   margin: 0;
   padding-left: 16px;
+}
+
+.map-info-note {
+  font-size: 12px;
+
+  color: var(--text-faint);
 }
 
 .map-info-actions {

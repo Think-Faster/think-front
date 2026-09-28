@@ -12,6 +12,7 @@ import { useObjects } from '../objects/hooks/useObjects';
 import { usePrediction } from './hooks/usePrediction';
 import {
   formatProbability,
+  POSSIBLE_ACCIDENT_LABEL,
   predictionTypeLabels,
   probabilityTone,
   REJECT_REASON_OTHER,
@@ -115,6 +116,13 @@ export default function PredictionDetailWindow() {
         {object ? object.name : `Объект #${prediction.objectId}`} ·{' '}
         {new Date(prediction.hourEnd).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
       </p>
+
+      {/* §13.11: объект «слепой» — прогноз опирается на то, что было до потери данных */}
+      {object?.status === 'offline' && (
+        <div className="status-note rej">
+          Объект не видно: показания не приходят, прогноз по данным до потери — {POSSIBLE_ACCIDENT_LABEL}.
+        </div>
+      )}
 
       {(canMap || canReadings) && (
         <div className="pd-actions">

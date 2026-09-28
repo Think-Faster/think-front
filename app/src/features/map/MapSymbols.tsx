@@ -142,3 +142,18 @@ export function CabinetGlyph() {
     </g>
   );
 }
+
+// Маршрут нарушителя — ломаная со стрелкой: метка у коллектора на карте
+// района и значок в легенде.
+export function RouteGlyph() {
+  return <path className="map-glyph" d="M-5.5 4L-2 -1L1.5 2.5L5 -3.5M1.6 -3.6L5 -3.5L5.2 -0.2" />;
+}
+
+export function RouteBadge() {
+  return (
+    <g className="map-route-badge">
+      <circle className="map-marker-disc" r="9" />
+      <RouteGlyph />
+    </g>
+  );
+}

@@ -720,6 +720,23 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
 
 Какое поле откуда берёт варианты — таблица в [SPEC.md](SPEC.md) §4.
 
+### Тревоги по факту и маршрут нарушителя
+
+Эпизод по факту (`FactAlert`) модель ведёт, пока он идёт (`live`): BFF
+обновляет `lastAt`, маршрут и `detailsJson` той же записи. Фронт ничего не
+выводит сам: группа (`accident`/`incident`) и живость приходят из BFF, статус
+объекта (тревога, нет данных) BFF считает при чтении.
+
+- Подписи и `factSummary()` — `features/predictions/predictionLabels.ts`,
+  им пользуются журнал данных, история объекта и карточка карты.
+- Карта берёт идущие эпизоды хуком `useLiveFacts` (опрос раз в
+  `LIVE_FACTS_REFRESH_MS`) и рисует маршрут `IntruderRoute`: позицию датчика
+  даёт вид карты (слой 3 или раскладка схемы), компонент геометрию не знает.
+- «Показать маршрут на карте» — `showRouteOnMap(alert)`: тот же запрос
+  `useMapRequest`, что у «показать на карте», с эпизодом в поле `route`.
+
+Правила и проверка — [SPEC.md](SPEC.md) §5.
+
 ## Email-рассылка (`POST /bff/notifications/email`)
 
 Кнопка-конверт рядом с аватаром пользователя внизу шторки
@@ -947,11 +964,12 @@ src/
 │   ├── map/
 │   │   ├── MapWindow.tsx                # окно workspace: карта района, multiple
 │   │   ├── CityLayer.tsx, MapSymbols.tsx, MapInfoCard.tsx
+│   │   ├── IntruderRoute.tsx             # маршрут нарушителя поверх карты объекта и схемы
 │   │   ├── geo.ts                        # геометрия слоёв BFF (условные метры схемы)
 │   │   ├── collector.ts                  # разбор слоёв коллектора (уровни 2–4)
 │   │   ├── city.ts                       # детерминированный город под схемой
-│   │   ├── mapRequest.ts                 # «показать на карте» из других окон
-│   │   └── hooks/useMapLayers.ts
+│   │   ├── mapRequest.ts                 # «показать на карте» и «показать маршрут» из других окон
+│   │   └── hooks/{useMapLayers,useLiveFacts}.ts
 │   ├── predictions/
 │   │   ├── PredictionQueueWindow.tsx      # окно workspace: очередь + фильтры
 │   │   ├── PredictionDetailWindow.tsx      # окно workspace: карточка, :id через useWindowEntityId
