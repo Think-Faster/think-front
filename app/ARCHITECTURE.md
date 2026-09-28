@@ -24,9 +24,10 @@
 - **Zustand** вместо Context — `stores/auth`, `stores/workspace`;
 - **Repository** вместо прямой мутации моков — например, `entities/user/userRepository.ts`;
 - **Registry** вместо `switch/if по id` — `core/registry/windowRegistry.ts`;
-- **Grid-workspace вместо свободных перекрывающихся окон** — фиксированная
-  сетка со своим состоянием в localStorage (см. «Редизайн: светлая тема и
-  grid-workspace» ниже);
+- **Workspace с двумя режимами раскладки** — сетка из сегментов 2×N и
+  свободные окна «внахлёст», переключаются в сайдбаре, состояние в
+  localStorage (история решения — «Редизайн: светлая тема и grid-workspace»,
+  текущее устройство — «Workspace сейчас» ниже);
 - **Единый API Client** с обработкой 401 через `core/auth/authEvents.ts` +
   `core/routing/navigation.ts` (без `window.location.href`);
 - **shared/ui** — переиспользуемые компоненты, вынесенные из повторяющейся
@@ -145,8 +146,9 @@ TypeScript не подключался вообще. Все три файла/п
   `WindowDefinition.requiredPermission` в `windowRegistry.ts`), более строгие
   права гейтят конкретные действия внутри окна, а не его видимость в
   списке/сайдбаре.
-- Профиль пользователя (`widgets/header/AppHeader.tsx` → `features/auth/UserMenu.tsx`)
-  — аватар в шапке стал кликабельной кнопкой, по клику рядом с ней открывается
+- Профиль пользователя (`features/auth/UserMenu.tsx`; шапки `widgets/header/
+  AppHeader.tsx` больше нет — меню живёт внизу шторки `WorkspaceSidebar`)
+  — аватар стал кликабельной кнопкой, по клику рядом с ней открывается
   попап с `userName`/`email` текущего юзера (`authStore.user`) и кнопкой
   «Выйти» (раньше нигде в UI не вызывался). Закрытие по клику вне попапа/Esc
   вынесено в общий хук `shared/hooks/useDismiss.ts` (реиспользуем для любого
@@ -297,7 +299,8 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
   диспетчера: очередь и карточка должны быть видны одновременно, поэтому —
   как и в исходном прототипе — два отдельных окна, синхронизированных через
   `/predictions/:id` (маршрут восстановлен в `AppRoutes.tsx`) и
-  `useParams()` внутри `PredictionDetailWindow`, а не через локальный
+  `:id` из адреса внутри `PredictionDetailWindow` (сейчас —
+  `useWindowEntityId()`, у копии карточки свой id), а не через локальный
   `useState` в общем родителе.
 - `shared/ui/ProgressBar.tsx` — восстановлен (был удалён вместе со старым
   мок-виджетом, снова нужен для вероятности в карточке прогноза).
@@ -334,12 +337,16 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
   (для одного пользователя) и `GET /brigades` (для бригад). Раз
   `engineerId` — это по сути `userId`, пикер назначения переиспользует уже
   существующий `useUsers()` из `features/users`, а не заводит новый
-  entity/repository ради одного select.
+  entity/repository ради одного select. *Позже:* в BFF появилась
+  `GET /bff/tasks/assignees?role=engineers|dispatchers` (участники групп),
+  и исполнителя и «кому вернуть» `TaskDetailWindow` теперь берёт оттуда
+  (`taskRepository`).
 - **Два окна, не одно** (`taskQueue` + `taskDetail`) — тот же паттерн, что
   и у прогнозов (Фаза 2), и по той же причине: это основной рабочий экран
   диспетчера (очередь + карточка должны быть видны одновременно), а не
   админский CRUD-сценарий. Синхронизация — `/tasks/:id` (роут в
-  `AppRoutes.tsx`) + `useParams()` в `TaskDetailWindow`, как у предсказаний.
+  `AppRoutes.tsx`) + `useWindowEntityId()` в `TaskDetailWindow`, как у
+  предсказаний.
 - **`TaskQueueWindow` — единственное окно из пары с формой создания.** В
   отличие от `PredictionQueueWindow` (создание прогнозов — не типовой
   сценарий UI, см. Фаза 2), `POST /tasks` — обычный человеческий сценарий
@@ -466,8 +473,9 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
 > не только по клику в сайдбаре — см. `core/registry/windowRegistry.ts`).
 > Раздел ниже не переписан под это целиком — читай его для истории решения
 > «матрица, не split-дерево» и «drag-оверрайд вместо только автоалгоритма»
-> (оба принципа пережили редизайн Даши), но за точным текущим API смотри в
-> сам код, начиная с `workspaceCommands.ts`.
+> (оба принципа пережили редизайн Даши). Текущее устройство — в разделе
+> «Workspace сейчас» сразу после этого, точный API — в коде, начиная с
+> `workspaceCommands.ts`.
 
 После того как все пять доменных фаз были готовы, интерфейс переделан по
 двум осям: цвет и механика окон. Прицел — не разработчики, а диспетчеры,
@@ -477,6 +485,9 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
 в верхнем тулбаре.
 
 ### Светлая тема
+
+> Теперь тем две — светлая и тёмная, см. «Тёмная тема» в разделе
+> «Workspace сейчас».
 
 Практически весь `src/styles/index.css` уже был завязан на CSS custom
 properties в `:root` (`--bg`/`--surface`/`--text`/`--cyan` и т.д.), поэтому
@@ -579,7 +590,8 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
   состояние теперь только в localStorage (`gridStorage.ts`), как и просили
   явно. `/predictions/:id`/`/tasks/:id` продолжают работать: маршрут
   по-прежнему рендерит `WorkspaceCanvas`, а `PredictionDetailWindow`/
-  `TaskDetailWindow` как и раньше читают `useParams()` — это не зависит от
+  `TaskDetailWindow` читают `:id` из адреса (теперь через
+  `useWindowEntityId()`, см. «Экземпляры окон» ниже) — это не зависит от
   сетки. Единственный сценарий, который раньше подстраховывал URL-синк и
   теперь не подстраховывает: если пользователь когда-то закрыл `pred`/
   `taskDetail` в своей сохранённой сетке, а потом перешёл по прямой ссылке
@@ -603,6 +615,110 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
 любом случае снимает окно со старой клетки — но целевого аффорданса для
 этого нет, кроме как через drag того же раздела из сайдбара); бэкенд для
 раскладки (только `GridStorage`-граница под будущую замену).
+
+## Workspace сейчас: два режима, экземпляры окон, тёмная тема
+
+Текущее устройство рабочего стола (ветка `TF-Front-Workspace`). Подробный
+спек с таблицей справочников и чек-листом проверки — [SPEC.md](SPEC.md).
+
+### Два режима раскладки
+
+Переключатель «Располагать окна внахлест?» в сайдбаре. Сайдбар, мусорка,
+ссылки из журналов и карта открывают и закрывают окна только через
+`stores/workspace/workspaceCommands.ts` (`openWindow`, `openWindowCopy`,
+`closeWindow`, `toggleWindow`, `minimizeWindow`, `setOverlap`,
+`setSegments`) и не знают, какой режим включён.
+
+| что | где | localStorage |
+|---|---|---|
+| режим, шторка, свёрнутые окна, призрак перетаскивания, подсказка | `stores/workspace/layoutStore.ts` | `kontur_layout_v1` |
+| свободные окна: место, размер, порядок стопки | `stores/workspace/freeStore.ts`, `widgets/workspace/FreeCanvas.tsx` | `kontur_free_v1` |
+| сегментная сетка 2×N (`SEGMENT_OPTIONS` 4/6/8/10) | `stores/workspace/gridStore.ts`, `core/workspace/gridStorage.ts`, `widgets/workspace/GridCanvas.tsx`, `GridDivider.tsx` | `kontur_grid_v2` |
+| контекст копий окон | `stores/workspace/instanceStore.ts` | `kontur_instances_v1` |
+
+Размеры и шаги — константы `core/workspace/gridConfig.ts`
+(`FREE_WINDOW_WIDTH`, `FREE_CASCADE_STEP`, `MIN_TRACK_SIZE` и т.д.), в
+компонентах чисел нет. При переходе в сетку лишние окна сверх 10 ячеек
+закрываются с подсказкой. Раскладка позже уедет в `PUT /workspaces/{id}`
+(доменный документ §7.1) — ручки в BFF пока нет.
+
+### Перетаскивание и мусорка
+
+`widgets/workspace/trashZone.ts` — общая механика для окна за шапку и
+раздела из сайдбара: порог `DRAG_THRESHOLD`, цели броска ищутся геометрией
+(`getBoundingClientRect`/`elementFromPoint`), без реестра ref-ов. Мусорка
+(§7.3 — окно в CLOSED) закрывает окно; в сетке бросок на ячейку меняет окна
+местами или заменяет стоявшее там окно разделом из сайдбара.
+
+Слои — токены в `:root` `src/styles/index.css`: `--z-sidebar` у сайдбара и
+`--z-window-dragged` у перетаскиваемого свободного окна, поэтому окно идёт
+поверх шторки к мусорке. Над мусоркой окно сжимается к точке захвата
+(`--trash-scale`, `--grab-x`, `--grab-y`; коэффициент `TRASH_FIT` в
+`FreeCanvas.tsx`), список разделов в сайдбаре гаснет (`.sidebar.window-drag`).
+Анимации уважают `prefers-reduced-motion`.
+
+### Экземпляры окон
+
+Окно на холсте — экземпляр записи реестра (§7.2: `window_id` и
+`window_type`, §12.5 — дубли разрешены).
+
+- `core/workspace/windowInstance.ts` — id экземпляров: первый носит id
+  записи (`map`), копии — `map:2` … `map:4` (`MAX_WINDOW_INSTANCES = 4`),
+  поэтому раскладки, сохранённые до копий, остаются валидными. Там же
+  `WindowInstanceContext`: содержимое окна узнаёт свой id и маршрут, не
+  импортируя реестр.
+- `core/registry/windowRegistry.ts` — флаг `multiple` у записи,
+  `findWindowDefinition(windowId)` (у `map:2` запись `map`),
+  `windowTitle` («Карта 2»).
+- `stores/workspace/windowScope.ts`:
+  - `useWindowObject()` — объект окна: первый экземпляр следует общему
+    выбору (`stores/selection/selectionStore.ts`) и меняет его, копия держит
+    свой объект;
+  - `useWindowEntityId()` — сущность карточки: у копии своя, у первого
+    экземпляра — `:id` из адреса, только если адрес ведёт на маршрут этой
+    карточки;
+  - `openWindowWithObject()` — переход в другое окно с объектом идёт через
+    общий выбор к первому экземпляру, даже из копии;
+  - `windowContextSnapshot()` — с чем открывается копия (кнопка ⧉ в шапке,
+    «+» у раздела в сайдбаре).
+- `widgets/workspace/WindowContent.tsx` — оборачивает содержимое в
+  `WindowInstanceContext`, кнопка ↻ перемонтирует окно, подпись свёрнутого
+  окна берёт контекст экземпляра.
+- `closeWindow` очищает контекст копии. «Показать на карте» исполняет только
+  первая карта.
+
+`multiple: true` сейчас у `map`, `queue`, `taskQueue`, `objectHistory`,
+`dataLog`, `logs`, `pred`, `taskDetail`.
+
+### Тёмная тема
+
+- `stores/theme/themeStore.ts` — выбор `light | dark | null` (null — как в
+  системе), localStorage `kontur_theme_v1`, атрибут `html[data-theme]`,
+  слежение за `prefers-color-scheme`. Подключается в `index.tsx` до первого
+  рендера; переключатель — `.sidebar-theme` в сайдбаре.
+- Все цвета — токены в `:root`. Тёмные значения заданы дважды:
+  `@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) {…} }`
+  и `:root[data-theme='dark'] {…}`. Компоненты берут цвета только из
+  токенов, тени и линии — через `--shade-rgb` и `--ink-rgb`; у карты свои
+  токены `--city-*` и `--map-*` (подложка подписей — `--map-halo`).
+- Рамки полей — токены `--field-bg`, `--field-border` на базовом правиле с
+  нулевой специфичностью (`:where(input…, textarea)`), своё оформление поля
+  в фиче перекрывает его без `!important`.
+
+### Выбор вместо ввода
+
+Если у значения есть справочник, поле даёт выбор. Справочник не лежит в
+форме: он в `*Labels.ts` своей фичи (`taskLabels.ts`, `peopleLabels.ts`,
+`notificationLabels.ts`, `sensorLabels.ts`, `objectLabels.ts`) или приходит
+из BFF (`GET /bff/sensors/types`, `/tasks/assignees`,
+`/objects/{id}/pickets`).
+
+- `shared/ui/ChoiceField.tsx` — выбор из справочника; `allowCustom`
+  добавляет «другое…» для открытых справочников, значение не из списка не
+  теряется; `textChoiceOptions()` — справочник без кодов.
+- `shared/ui/ChipMultiSelect.tsx` — несколько значений чипами.
+
+Какое поле откуда берёт варианты — таблица в [SPEC.md](SPEC.md) §4.
 
 ## Email-рассылка (`POST /bff/notifications/email`)
 
@@ -705,12 +821,13 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
 
 ```text
 src/
+├── index.tsx                # точка входа: тема до первого рендера, document.title из config
 ├── app/                     # bootstrap, роутинг, layout — НЕ бизнес-логика
 │   ├── App.tsx               # инициализация auth, BrowserRouter
 │   ├── AppRoutes.tsx          # список маршрутов
 │   ├── NavigationBridge.tsx    # регистрирует useNavigate() для core/routing
 │   ├── layouts/
-│   │   └── WorkspaceLayout.tsx # Header + shell-body(Sidebar + <Outlet/>)
+│   │   └── WorkspaceLayout.tsx # холст на весь экран + шторка сайдбара, шапки нет
 │   └── routing/
 │       └── ProtectedRoute.tsx
 │
@@ -718,12 +835,14 @@ src/
 │   ├── config/config.ts       # ENV → AppConfig
 │   ├── api/
 │   │   ├── client.ts           # единственный axios-инстанс + 401-интерцептор
-│   │   └── endpoints.ts        # строки путей backend
+│   │   ├── endpoints.ts        # строки путей backend (BFF и воронка)
+│   │   └── types.ts            # PagedResult / PageRequest — страницы списков BFF
 │   ├── auth/
 │   │   ├── types.ts
 │   │   ├── authApi.ts           # HTTP-обёртка над /auth/* (login/register/me — logout нет)
 │   │   ├── authEvents.ts        # pub/sub для "случился 401"
 │   │   └── clearAllCookies.ts    # используется в authStore.logout()
+│   ├── events/dataEvents.ts     # «данные изменились» между окнами (task.created, prediction.updated)
 │   ├── routing/navigation.ts    # navigate() вне React-дерева
 │   ├── errors/
 │   │   ├── httpError.ts          # classifyError(): по HTTP-статусу (generic/tf-auth)
@@ -731,19 +850,26 @@ src/
 │   ├── permissions/
 │   │   ├── permissionService.ts   # can()/usePermission()(resource, action)
 │   │   └── permissionsApi.ts      # GET /bff/permissions/me
-│   ├── registry/windowRegistry.ts        # id → { component, defaultOpen, title }
+│   ├── registry/windowRegistry.ts        # id → { component, section, defaultOpen, route, multiple, requiredPermission }
 │   └── workspace/
 │       ├── gridTypes.ts                   # GridTrack/GridCell/GridState
-│       ├── gridConfig.ts                  # MAX_AUTO_COLUMNS и другие константы сетки
-│       └── gridStorage.ts                 # GridStorage — граница I/O, сейчас localStorage
+│       ├── gridConfig.ts                  # SEGMENT_OPTIONS, размеры свободных окон и другие константы
+│       ├── gridStorage.ts                 # GridStorage — граница I/O, сейчас localStorage
+│       └── windowInstance.ts              # id экземпляров окна, MAX_WINDOW_INSTANCES, WindowInstanceContext
 │
 ├── entities/                # доменные сущности: тип + данные + repository
 │   ├── prediction/
 │   │   ├── types.ts
 │   │   └── predictionRepository.ts    # GET /bff/predictions[/{id}], POST .../decisions — без create()
+│   ├── factAlert/
+│   │   ├── types.ts
+│   │   └── factAlertRepository.ts     # GET /bff/fact-alerts — только чтение, тревоги создаёт контур
 │   ├── task/
 │   │   ├── types.ts                    # WorkTask + вложенные TaskPrediction/Assignment/Report/Return
 │   │   └── taskRepository.ts          # GET/POST/PUT /bff/tasks[/{id}], take + add/remove на под-списки
+│   ├── workSchedule/
+│   │   ├── types.ts
+│   │   └── workScheduleRepository.ts  # /bff/work-schedule — график ППР
 │   ├── user/
 │   │   ├── types.ts
 │   │   └── userRepository.ts          # GET/POST/PUT /bff/users[/{id}]
@@ -758,10 +884,16 @@ src/
 │   │   └── grantRepository.ts         # GET/POST /bff/permissions/grants, DELETE .../{id}
 │   ├── object/
 │   │   ├── types.ts                    # MonitoredObject (не Object!)
-│   │   └── objectRepository.ts        # GET/POST/PUT /bff/objects[/{id}] — без pickets/layers
+│   │   └── objectRepository.ts        # GET/POST/PUT /bff/objects[/{id}], слои карты
+│   ├── picket/
+│   │   ├── types.ts
+│   │   └── picketRepository.ts        # GET /bff/objects/{id}/pickets
 │   ├── sensor/
 │   │   ├── types.ts
-│   │   └── sensorRepository.ts        # GET/POST/PUT /bff/sensors[/{id}] — без links
+│   │   └── sensorRepository.ts        # GET/POST/PUT /bff/sensors[/{id}], GET /bff/sensors/types
+│   ├── reading/
+│   │   ├── types.ts
+│   │   └── readingRepository.ts       # /bff/readings/scope, журнал и поток воронки (/funnel/*)
 │   ├── incident/
 │   │   ├── types.ts
 │   │   └── incidentRepository.ts      # GET /bff/incidents[/{id}], POST .../confirm — без create()
@@ -798,18 +930,41 @@ src/
 │
 ├── stores/                  # Zustand — только client state
 │   ├── auth/authStore.ts
-│   ├── workspace/gridStore.ts            # GridState + placeWindowAuto/placeWindowAt/resize*/addColumn/addRow
 │   ├── permissions/permissionsStore.ts  # карта "ресурс → права", пустая по умолчанию/на ошибке
-│   └── profile/profileStore.ts          # BFF-профиль текущего юзера (best effort, см. раздел выше)
+│   ├── profile/profileStore.ts          # BFF-профиль текущего юзера (best effort, см. раздел выше)
+│   ├── selection/selectionStore.ts      # общий выбранный объект (клик по карте, карточки)
+│   ├── theme/themeStore.ts              # светлая/тёмная/как в системе, html[data-theme]
+│   └── workspace/
+│       ├── workspaceCommands.ts          # openWindow/openWindowCopy/closeWindow/setOverlap — единая точка
+│       ├── layoutStore.ts                # режим, шторка, свёрнутые окна, drag, подсказка
+│       ├── freeStore.ts                  # свободные окна: место, размер, стопка
+│       ├── gridStore.ts                  # сегментная сетка 2×N
+│       ├── instanceStore.ts              # контекст копий окон {objectId, entityId}
+│       └── windowScope.ts                # useWindowObject/useWindowEntityId/openWindowWithObject
 │
 ├── features/                # пользовательские сценарии поверх entities
 │   ├── auth/{LoginForm,UserMenu}.tsx
+│   ├── map/
+│   │   ├── MapWindow.tsx                # окно workspace: карта района, multiple
+│   │   ├── CityLayer.tsx, MapSymbols.tsx, MapInfoCard.tsx
+│   │   ├── geo.ts                        # геометрия слоёв BFF (условные метры схемы)
+│   │   ├── collector.ts                  # разбор слоёв коллектора (уровни 2–4)
+│   │   ├── city.ts                       # детерминированный город под схемой
+│   │   ├── mapRequest.ts                 # «показать на карте» из других окон
+│   │   └── hooks/useMapLayers.ts
 │   ├── predictions/
 │   │   ├── PredictionQueueWindow.tsx      # окно workspace: очередь + фильтры
-│   │   ├── PredictionDetailWindow.tsx      # окно workspace: карточка, читает :id из URL
+│   │   ├── PredictionDetailWindow.tsx      # окно workspace: карточка, :id через useWindowEntityId
 │   │   ├── PredictionFilters.tsx
 │   │   ├── predictionLabels.ts
 │   │   └── hooks/{usePredictions,usePrediction}.ts
+│   ├── dataLog/DataLogWindow.tsx         # окно workspace: тревоги по факту (/fact-alerts)
+│   ├── logs/
+│   │   ├── LogsWindow.tsx                # окно workspace: показания из воронки
+│   │   └── hooks/{useReadingsScope,useReadingsStream,useSensorNames}.ts
+│   ├── objectHistory/
+│   │   ├── ObjectHistoryWindow.tsx       # окно workspace: лента событий объекта
+│   │   └── hooks/useObjectHistory.ts
 │   ├── users/
 │   │   ├── UsersPanel.tsx              # список + форма создания/редактирования
 │   │   ├── UserEditForm.tsx
@@ -827,15 +982,18 @@ src/
 │   ├── objects/
 │   │   ├── ObjectsPanel.tsx              # список + форма создания/редактирования
 │   │   ├── ObjectEditForm.tsx
+│   │   ├── objectLabels.ts
 │   │   └── hooks/{useObjects,useCreateObject,useUpdateObject}.ts
 │   ├── sensors/
 │   │   ├── SensorsPanel.tsx              # список (с фильтром по объекту) + создание/редактирование
 │   │   ├── SensorEditForm.tsx
-│   │   └── hooks/{useSensors,useCreateSensor,useUpdateSensor}.ts
+│   │   ├── sensorLabels.ts
+│   │   └── hooks/{useSensors,useCreateSensor,useUpdateSensor,useSensorTypes,usePickets}.ts
 │   ├── assets/AssetsWindow.tsx          # окно workspace: вкладки Объекты/Датчики
 │   ├── tasks/
-│   │   ├── TaskQueueWindow.tsx          # окно workspace: очередь + фильтры + создание
-│   │   ├── TaskDetailWindow.tsx          # окно workspace: карточка, читает :id из URL
+│   │   ├── TaskQueueWindow.tsx          # окно workspace: «Дневник диспетчера»
+│   │   ├── TaskCreateWindow.tsx          # окно workspace: создание заявки
+│   │   ├── TaskDetailWindow.tsx          # окно workspace: карточка, :id через useWindowEntityId
 │   │   ├── taskLabels.ts
 │   │   └── hooks/{useTasks,useCreateTask,useTask}.ts
 │   ├── incidents/
@@ -850,13 +1008,14 @@ src/
 │   │   ├── peopleLabels.ts
 │   │   └── hooks/{useSchedule,useAssignedObjects,useEngineerProfile,useBrigades,usePresence}.ts
 │   ├── modelSettings/
-│   │   ├── ModelSettingsWindow.tsx      # окно workspace: 4 вкладки
+│   │   ├── ModelSettingsWindow.tsx      # окно workspace: вкладки настроек модели
 │   │   ├── ModelVersionsTab.tsx
 │   │   ├── CoefficientsTab.tsx
 │   │   ├── RetrainJobsTab.tsx
 │   │   ├── IgnoredRangesTab.tsx
+│   │   ├── WorkScheduleTab.tsx           # график ППР
 │   │   ├── modelSettingsLabels.ts
-│   │   └── hooks/{useModelVersions,useCoefficients,useRetrainJobs,useIgnoredRanges}.ts
+│   │   └── hooks/{useModelVersions,useCoefficients,useRetrainJobs,useIgnoredRanges,useWorkSchedule}.ts
 │   └── notifications/
 │       ├── MailButton.tsx               # не окно workspace — гейтит себя локально, открывает Modal
 │       ├── SendEmailModal.tsx
@@ -864,13 +1023,19 @@ src/
 │       └── hooks/useSendEmail.ts
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
-│   ├── workspace/{WorkspaceCanvas,WorkspaceSidebar,GridColumnDivider,GridRowDivider}
-│   └── header/AppHeader.tsx
+│   └── workspace/
+│       ├── WorkspaceCanvas.tsx           # выбирает режим, призрак перетаскивания
+│       ├── FreeCanvas.tsx                # свободные окна, drag к мусорке
+│       ├── GridCanvas.tsx, GridDivider.tsx # сегментная сетка и её разделители
+│       ├── WindowContent.tsx             # содержимое окна в WindowInstanceContext, копия ⧉
+│       ├── WorkspaceSidebar.tsx          # разделы, «+» копии, режим, тема, мусорка, меню пользователя
+│       └── trashZone.ts                  # общая механика перетаскивания и бросков
 │
 ├── shared/                  # ничего не знает про backend-сущности
-│   ├── ui/{Button,Badge,ChipFilterGroup,ProgressBar,StatChip,
-│   │        Breadcrumb,Window,EmptyState,Modal}.tsx  # Modal — поверх всех окон, вне grid/free-раскладки
-│   └── hooks/{useInterval,useClock,useDismiss}.ts
+│   ├── ui/{Button,Badge,ChipFilterGroup,ChipMultiSelect,ChoiceField,
+│   │        ProgressBar,StatChip,Breadcrumb,Window,EmptyState,ListFooter,
+│   │        SearchField,Modal,icons}.tsx  # Modal — поверх всех окон, вне grid/free-раскладки
+│   └── hooks/{useInterval,useClock,useDismiss,usePagedList}.ts
 │
 └── pages/                   # тонкие точки для роутов
     ├── LoginPage.tsx
@@ -1021,43 +1186,57 @@ features/room-status/
 
 Это самый частый сценарий добавления функциональности в этот конкретный
 проект — рабочая область состоит из независимых окон, и *добавление окна не
-должно требовать правок `WorkspaceCanvas.tsx` или `WorkspaceSidebar.tsx`*.
+должно требовать правок `WorkspaceCanvas.tsx`, `FreeCanvas.tsx`,
+`GridCanvas.tsx` или `WorkspaceSidebar.tsx`*.
 
-1. Сделать сам виджет — presentational-компонент без пропсов (или с
-   пропсами, у которых есть дефолты), в `src/widgets/<name>/<Name>Widget.tsx`.
-   Если окну нужны данные конкретной сущности — используйте
-   `features/<feature>` компонент вместо чистого widget (как `access`,
-   `config` и `assets` в реестре ссылаются на компоненты из
-   `features/access`, `features/config`, `features/assets`).
+1. Сделать компонент окна без пропсов в `src/features/<feature>/<Name>Window.tsx`
+   (как `MapWindow`, `LogsWindow`, `AccessWindow`). Чистый
+   presentational-блок без сущностей — в `src/widgets/<name>/`.
 
 2. Зарегистрировать окно в `src/core/registry/windowRegistry.ts`:
 
    ```ts
-   import RoomStatusList from '../../features/room-status/RoomStatusList';
+   import RoomStatusWindow from '../../features/roomStatus/RoomStatusWindow';
 
    // ...
    {
      id: 'rooms',
      title: 'Статус помещений',
-     component: RoomStatusList,
+     component: RoomStatusWindow,
+     section: 'more',          // primary — кнопки макета, more — «Ещё разделы», detail — только по ссылке
      defaultOpen: false,
+     followsSelection: true,   // показывает объект с карты — номер в подписи свёрнутого окна
+     multiple: true,           // можно открыть до MAX_WINDOW_INSTANCES копий
      requiredPermission: [{ resource: 'rooms', action: 'read' }],
    },
    ```
 
-3. Больше ничего менять не нужно — `WorkspaceSidebar` и `WorkspaceCanvas`
-   автоматически подхватят новую запись реестра. Раздел появится в списке
-   слева; клик по нему разместит окно в свободной клетке сетки (или создаст
-   колонку/строку, если сетка уже заполнена — см. «Редизайн: светлая тема и
-   grid-workspace» выше).
+   Карточка по ссылке — `section: 'detail'` и `route: '/rooms/:id'` плюс
+   маршрут в `app/AppRoutes.tsx`.
 
-`id` должен быть уникальным и стабильным — он используется как ключ и в
-`localStorage` (`kontur_grid_v1`), и внутри `GridCell.windowId`. Менять `id`
+3. Если окно показывает объект или карточку — брать их не из
+   `selectionStore` и не из `useParams()`, а через
+   `stores/workspace/windowScope.ts`: `useWindowObject()` для объекта,
+   `useWindowEntityId()` для `:id` карточки. Тогда копия окна (`multiple`)
+   работает со своим объектом без правок в компоненте. Переход в другое окно
+   с объектом — `openWindowWithObject()`, открыть или закрыть окно —
+   функции `workspaceCommands.ts`, не сторы раскладки напрямую.
+
+4. Справочники полей — в `<feature>Labels.ts` своей фичи или из BFF, в
+   форме поле — `ChoiceField`/`ChipMultiSelect` (см. «Выбор вместо ввода»).
+   Цвета — только токены из `:root`, чтобы окно работало в обеих темах.
+
+5. Больше ничего менять не нужно — сайдбар и оба холста подхватят новую
+   запись реестра. Клик по разделу откроет окно в текущем режиме раскладки
+   (в свободной ячейке сетки или каскадом внахлест).
+
+`id` должен быть уникальным и стабильным — он ключ в `localStorage`
+(`kontur_grid_v2`, `kontur_free_v1`, `kontur_layout_v1`) и основа id копий
+(`rooms:2`), поэтому двоеточия в `id` быть не должно. Менять `id`
 существующего окна нельзя без потери сохранённой раскладки у пользователей.
 `defaultOpen: true` стоит ставить только тем окнам, которые должны появиться
-сами при самом первом запуске приложения (без сохранённого
-`kontur_grid_v1`) — сейчас это `queue`/`pred`, основной рабочий экран
-диспетчера.
+сами при самом первом запуске приложения (пока раскладка не сохранена) —
+сейчас это `map` и `queue`.
 
 ---
 
@@ -1170,11 +1349,15 @@ export const useNotificationsStore = create<NotificationsState>(set => ({
 
 ```ts
 export const config = {
-  appName: process.env.REACT_APP_APP_NAME || 'КОНТУР',
+  appName: process.env.REACT_APP_APP_NAME || 'Thinkfaster',
   environment: process.env.REACT_APP_ENVIRONMENT || 'development',
   apiBaseUrl: process.env.REACT_APP_API_BASE_URL || '/api',
 };
 ```
+
+`appName` — заголовок вкладки (`index.tsx` ставит `document.title`). Иконки
+вкладки и PWA (`public/favicon.svg`, `favicon.ico`, `logo192.png`,
+`logo512.png`) — знак из `LogoMark`, имя и цвета в `public/manifest.json`.
 
 Не хардкодить `/api/...` в компонентах или repository — базовый URL берётся
 из `config.apiBaseUrl` (уже зашит в `core/api/client.ts`), а конкретные пути
