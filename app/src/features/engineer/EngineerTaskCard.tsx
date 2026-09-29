@@ -17,15 +17,18 @@ interface SensorGroup {
 }
 
 // Датчики заявки по пикетам — в порядке, в каком их указал диспетчер.
-// Названия и пикеты — из слоя датчиков коллектора; нет слоя — номер канала.
+// Названия и пикеты — из слоя датчиков коллектора, нет слоя — из справочника
+// в заявке (sensors), нет и там — номер канала.
 function groupSensors(task: WorkTask, model: CollectorModel): SensorGroup[] {
   const groups = new Map<string, SensorGroup>();
   for (const id of task.sensorIds) {
     const sensor = model.sensorById.get(id);
+    const known = task.sensors.find(item => item.sensorId === id);
     const picket = sensor?.picketId != null ? model.picketById.get(sensor.picketId) : undefined;
-    const title = picket ? `Пикет ${picket.code}` : 'Без пикета';
+    const picketCode = picket?.code ?? known?.picketCode;
+    const title = picketCode ? `Пикет ${picketCode}` : 'Без пикета';
     const group = groups.get(title) ?? { title, sensors: [] };
-    group.sensors.push({ id, name: sensor?.name || `Канал ${id}`, kind: sensor?.stype ?? '' });
+    group.sensors.push({ id, name: sensor?.name || known?.name || `Канал ${id}`, kind: sensor?.stype ?? known?.sType ?? '' });
     groups.set(title, group);
   }
   return Array.from(groups.values());

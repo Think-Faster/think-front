@@ -7,6 +7,7 @@ import { SEGMENT_OPTIONS } from '../../core/workspace/gridConfig';
 import { definitionIdOf } from '../../core/workspace/windowInstance';
 import UserMenu from '../../features/auth/UserMenu';
 import MailButton from '../../features/notifications/MailButton';
+import TelegramButton from '../../features/notifications/TelegramButton';
 import { CurtainIcon, LogoMark, MinusCircleIcon, MoonIcon, PlusCircleIcon, SunIcon, TrashIcon } from '../../shared/ui/icons';
 import { usePermissionsStore } from '../../stores/permissions/permissionsStore';
 import { useThemeStore } from '../../stores/theme/themeStore';
@@ -380,6 +381,7 @@ export default function WorkspaceSidebar() {
 
         <div className="sidebar-user">
           <MailButton />
+          <TelegramButton />
           <UserMenu />
         </div>
       </div>

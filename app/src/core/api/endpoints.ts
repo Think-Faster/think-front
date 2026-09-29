@@ -3,7 +3,8 @@ export const endpoints = {
     login: '/auth/login',
     me: '/auth/me',
     register: '/auth/create',
-    // Нет ручки логаута — выход обрабатывается на фронте, см. authStore.logout().
+    refresh: '/auth/refresh',
+    logout: '/auth/logout',
   },
 
   // BFF sits behind the same nginx/domain under /api/bff/* — see
@@ -12,6 +13,7 @@ export const endpoints = {
     users: {
       list: '/bff/users',
       byId: (id: string) => `/bff/users/${id}`,
+      meTelegram: '/bff/users/me/telegram',
     },
     groups: {
       list: '/bff/groups',
@@ -39,6 +41,7 @@ export const endpoints = {
     },
     predictions: {
       list: '/bff/predictions',
+      stats: '/bff/predictions/stats',
       byId: (id: string) => `/bff/predictions/${id}`,
       decisions: (id: string) => `/bff/predictions/${id}/decisions`,
     },
@@ -75,15 +78,12 @@ export const endpoints = {
     userEngineerProfile: (userId: string) => `/bff/users/${userId}/engineer-profile`,
     presence: '/bff/presence',
     brigades: '/bff/brigades',
-    modelVersions: {
-      list: '/bff/model-versions',
-      activate: (id: string) => `/bff/model-versions/${id}/activate`,
-    },
-    coefficients: '/bff/coefficients',
-    retrainJobs: '/bff/retrain-jobs',
-    ignoredRanges: {
-      list: '/bff/ignored-ranges',
-      byId: (id: string) => `/bff/ignored-ranges/${id}`,
+    // Команды модели (версия типа, рабочие доли, игнорируемые периоды): BFF проверяет право и передаёт
+    // их в модель, само состояние — в ml.status.
+    modelCommands: {
+      switch: '/bff/model-commands/switch',
+      operating: '/bff/model-commands/operating',
+      gaps: '/bff/model-commands/gaps',
     },
     // График плановых работ (ППР, ТО): окна, в которые модель глушит тревоги.
     workSchedule: {
@@ -95,6 +95,7 @@ export const endpoints = {
     readingsScope: '/bff/readings/scope',
     notifications: {
       sendEmail: '/bff/notifications/email',
+      sendTelegram: '/bff/notifications/telegram',
     },
   },
 
@@ -103,5 +104,11 @@ export const endpoints = {
   funnel: {
     log: '/funnel/log',
     stream: '/funnel/stream',
+  },
+
+  // Модель (tf-model) под /api/ml/*: своё состояние отдаёт сама, по куке входа.
+  ml: {
+    status: '/ml/status',
+    estimate: '/ml/estimate',
   },
 } as const;

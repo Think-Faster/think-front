@@ -82,12 +82,14 @@ TypeScript не подключался вообще. Все три файла/п
   - **Существующая** — шаг регистрации пропускается, `authUserId` вводится
     вручную (поле «ID учётной записи») и уходит прямо в `POST /bff/users`.
 - Редактирование пользователя (`UsersPanel.tsx` → `UserEditForm.tsx` →
-  `hooks/useUpdateUser.ts`) — клик по «Изменить» в строке списка переключает
-  панель из режима «добавить» в режим «редактировать» этого пользователя.
+  `hooks/useUpdateUser.ts`) — «Изменить ▾» в строке списка раскрывает форму
+  прямо под этой строкой (`.row-expand`), повторный клик (▴) сворачивает;
+  форма «Добавить пользователя» внизу остаётся на месте.
 - Управление составом группы (`GroupsPanel.tsx` → `GroupMembersEditor.tsx` →
   `hooks/useGroupMembers.ts`) — клик по группе в списке (стилизован через
   переиспользованный `.queue-item`, см. ниже) подгружает её полную карточку
-  (`GET /groups/{id}`, с участниками) и показывает два независимых поля для
+  (`GET /groups/{id}`, с участниками) и раскрывает её прямо под строкой
+  группы (`.row-expand`, стрелка ▾/▴) — два независимых поля для
   добавления участника — «Пользователь» и «Группа» (вложенность), плюс кнопку
   убрать у каждого уже добавленного участника.
 - **Окно «Конфигурация доступа»** (`features/config/ConfigWindow.tsx`,
@@ -149,8 +151,10 @@ TypeScript не подключался вообще. Все три файла/п
 - Профиль пользователя (`features/auth/UserMenu.tsx`; шапки `widgets/header/
   AppHeader.tsx` больше нет — меню живёт внизу шторки `WorkspaceSidebar`)
   — аватар стал кликабельной кнопкой, по клику рядом с ней открывается
-  попап с `userName`/`email` текущего юзера (`authStore.user`) и кнопкой
-  «Выйти» (раньше нигде в UI не вызывался). Закрытие по клику вне попапа/Esc
+  попап с именем и почтой текущего юзера и кнопкой
+  «Выйти» (раньше нигде в UI не вызывался). Имя — ФИО из BFF-профиля, без
+  него — `userName` учётки; почта ниже, если не совпадает с именем (логин
+  часто и есть почта — второй раз её не пишем). Закрытие по клику вне попапа/Esc
   вынесено в общий хук `shared/hooks/useDismiss.ts` (реиспользуем для любого
   будущего dropdown/popover, не только этого). Инициалы на самой кнопке и оба
   id в попапе — см. отдельный блок «Учётка vs профиль» ниже, там же
@@ -159,14 +163,13 @@ TypeScript не подключался вообще. Все три файла/п
   следующей (`.field-label` + `.user-menu-id-value`, с `word-break:
   break-all`), а не в одну строку с лейблом — длинный uuid иначе вылезал за
   границы попапа (`width: 220px`).
-- **Logout без бэкенд-ручки.** На бэкенде нет `/auth/logout` — `authStore.logout()`
-  чистит куки на фронте (`core/auth/clearAllCookies.ts`) и уходит на `/login`,
-  без HTTP-запроса. Важная оговорка прямо в этом файле: если кука с токеном
-  `HttpOnly` (а по `docs/FRONTEND_INTEGRATION.md` §2 это так) — JS её в
-  принципе не видит и не может стереть; такой logout чистит то, что вообще
-  доступно фронту, и сбрасывает состояние приложения, но сама HttpOnly-кука
-  протухнет только по её собственному сроку жизни (или когда на бэкенде
-  появится настоящая ручка логаута, отдающая `Set-Cookie` с истёкшим сроком).
+- **Logout — через tf-auth.** Куки сессии (`access_token`, `refresh_token`)
+  `HttpOnly`: JS их не видит и стереть не может, а оставшаяся refresh-кука
+  подняла бы сессию снова на следующем `/auth/me`. Поэтому `authStore.logout()`
+  сразу сбрасывает состояние и зовёт `POST /auth/logout` (`authApi.logout()`) —
+  tf-auth отвечает `Set-Cookie` с истёкшим сроком; затем
+  `core/auth/clearAllCookies.ts` чистит читаемые куки, и уходим на `/login`.
+  Ручка не ответила — на `/login` уходим всё равно.
 
 ### Учётка (auth) vs профиль (BFF) — и почему инициалы аватара best-effort
 
@@ -223,10 +226,10 @@ TypeScript не подключался вообще. Все три файла/п
 - **Фаза 4 — Происшествия, график/присутствие/инженеры/бригады (сделано).**
   Пять сущностей за один заход — объём как у Фазы 1–3 вместе, но каждая
   по отдельности небольшая. См. «Фаза 4 (люди) — что добавлено» ниже.
-- **Фаза 5 — Админ-настройки модели (сделано).** Четыре сущности
-  (`ModelVersion`/`Coefficient`/`RetrainJob`/`IgnoredRange`) под единым
-  правом `model_settings:read`/`model_settings:manage`, без отдельных
-  create/update/delete, — по духу похоже на «Конфигурацию доступа». См.
+- **Фаза 5 — Админ-настройки модели (сделано, переделано).** Одна сущность
+  `modelControl`: состояние читается из модели (`/api/ml/status`), изменения
+  уходят командами в модель через BFF (`/bff/model-commands/*`), под единым
+  правом `model_settings:read`/`model_settings:manage`. См.
   «Фаза 5 (админ-настройки модели) — что добавлено» ниже.
 
 Все пять фаз доменного пласта закрыты — все 13 ресурсов из
@@ -280,8 +283,8 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
     вызывается и в очереди, и в карточке);
   - `why: string[]` заменён на `factors: PredictionFactorDto[]` +
     `evidence: PredictionEvidenceDto[]` — другой рендер (список
-    `feature/value/weight/direction`, evidence сейчас не выводится за
-    ненадобностью, но в типе есть).
+    `feature/value/weight/direction`; с 29.09 и evidence — см. «Карточка
+    прогноза и сводка журнала»).
   - `predictionRepository` **не имеет `create()`** — по докам прогноз в
     норме создаёт модель через Kafka-consumer, а не человек через форму;
     `POST /predictions` на бэкенде существует, но раз это не типовой сценарий
@@ -309,6 +312,11 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
   `PredictionFilters.tsx`, который живёт в `.win-toolbar`, а не в форме.
 
 #### Фаза 3 (заявки и работы) — что добавлено
+
+- **Где работать** (29.09): `WorkTask.picketCode` и `sensors` — BFF подставляет из справочника
+  при чтении, как у прогнозов и эпизодов по факту. Карточка диспетчера показывает пикет,
+  датчики, тип работ, неисправность и весь отчёт; раздел инженера берёт `sensors`, когда нет
+  слоя карты. Правила — [SPEC.md](SPEC.md) §7.
 
 - `entities/task` — `WorkTask`/`WorkTaskListItem` под реальный `WorkTaskDto`:
   вложенные `predictions[]`/`assignments[]`/`reports[]`/`returns[]` как
@@ -417,45 +425,37 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
 
 #### Фаза 5 (админ-настройки модели) — что добавлено
 
-Четыре сущности (`modelVersion`, `coefficient`, `retrainJob`,
-`ignoredRange`), одно окно `ModelSettingsWindow` с четырьмя вкладками
-(`ChipFilterGroup`, тот же приём, что в `AssetsWindow`/`AccessWindow`/
-`PeopleWindow`). Гейтинг единый на все вкладки —
-`usePermission('model_settings', 'manage')` — доступа `create`/`update`
-отдельно не существует, см. доку.
+Первая версия держала четыре сущности (`modelVersion`, `coefficient`,
+`retrainJob`, `ignoredRange`) в собственной БД BFF — модель их не читала,
+правки ни на что не влияли. Теперь источник правды — сама модель: одна
+сущность `entities/modelControl`, одно окно `ModelSettingsWindow` с вкладками
+«Версии», «Рабочие доли», «Игнорируемые периоды», «График работ»
+(`ChipFilterGroup`). Гейтинг единый — `usePermission('model_settings', 'manage')`.
 
-- **Все 4 POST-ручки этого раздела — без описанного тела запроса в доке**
-  (единственный раздел, где это верно сразу для всех эндпоинтов, не только
-  для одного-двух, как в предыдущих фазах). Тело каждого запроса выведено
-  из соответствующего DTO за вычетом серверных полей — то же самое
-  рассуждение, что и для `schedule`/`brigade` в Фазе 4, применено здесь
-  последовательно ко всем четырём. Если бэкенд ждёт другой набор полей —
-  это всегда только `entities/<name>/types.ts`, компоненты не трогать.
-- **`ModelVersionDto.id` — исключение из общего правила «id генерирует
-  бэкенд».** Формулировка «Дубль `id` → `409 duplicate_code`» в доке имеет
-  смысл только если `id` задаёт клиент (человеческая версия вроде `v1.2.3`,
-  не UUID) — иначе дубликат генерируемого id структурно невозможен. Поэтому
-  `CreateModelVersionRequest` включает `id` как обязательное поле, в отличие
-  от `coefficient`/`retrainJob`/`ignoredRange`/`brigade`, где id — обычный
-  сервер-генерируемый.
-- **`coefficientRepository` без `update()` — версионирование, не
-  редактирование.** `POST /coefficients` всегда создаёт новую запись с
-  инкрементированным `version` (см. доку §3); `GET` отдаёт только последнюю
-  версию на каждый `type`. Форма создания в `CoefficientsTab.tsx` поэтому
-  всегда «Сохранить новую версию», не «Изменить», даже если коэффициент
-  этого типа уже есть.
-- **`retrainJobRepository` — только заявка, не запуск.** `POST
-  /retrain-jobs` создаёт запись со `status: "requested"`; сам процесс
-  переобучения делает `tf-model` асинхронно, BFF (и фронт) её не
-  дожидаются и не управляют — нет отмены/повтора с фронта, этого нет в
-  доке. `paramsJson` — сырой JSON-текст без схемы (тот же паттерн, что
-  `geometryGeoJson` у объектов), поэтому `<textarea>`, а не структурная
-  форма.
-- **`IgnoredRangesTab.tsx` показывает поле `objectId`/`sensorId` условно**
-  по выбранному `scope` (`all`/`object`/`sensor`) — по доке они обязательны
-  только при соответствующем значении `scope`, поле для неактуального
-  случая не показывается вовсе (а не «показать оба сразу и понадеяться на
-  бэкенд»).
+- **Чтение — из модели, запись — командой.** `GET /api/ml/status` отдаёт
+  версии по типам, рабочие доли с границами схемы, игнорируемые периоды и
+  флаг переобучения; `GET /api/ml/estimate?type=&share=` — оценку «тревог в
+  сутки» для доли. Изменения идут `POST /bff/model-commands/{switch,operating,gaps}`:
+  BFF проверяет право и тело, публикует команду в `tf.model.commands` и
+  отвечает `202` (или `503 model_commands_unavailable`). Почему так — в
+  `DECISIONS.md` think-bff, раздел «Админ-панель модели — команды в модель».
+- **`useModelStatus` дожидается применения.** После `202` хук перечитывает
+  `/status` (5 раз по 2 с), пока в нём не видна команда (номер версии или
+  выбранная версия типа). Не дождался — сообщение «модель пока не применила,
+  причина в её аудите»: модель отбрасывает снимок с устаревшим номером или
+  вне границ схемы.
+- **Снимки версионируются клиентом.** Рабочие доли и периоды уходят целиком
+  со следующим номером версии (`settings.version + 1`, `gaps.version + 1`) и
+  обязательной причиной. Доли вводятся в процентах и округляются до 1e-6 —
+  иначе хвост плавающей точки попал бы в аудит модели как изменение.
+- **Ротация версий** (`ModelVersionsTab`) — выбор «основная» или собранной
+  версии типа (`switch`, `versionId: null` = основная); если собранных версий
+  нет, показывается «одна версия».
+- **Переобучение — только статус.** В контуре оно выключено
+  (`retrain.enabled = false`), поэтому отдельной вкладки заявок нет: после
+  правки периодов «Версии» показывают «Нужно переобучение».
+- Старые ручки BFF (`/model-versions`, `/coefficients`, `/retrain-jobs`,
+  `/ignored-ranges`) остались в BFF как история, фронт их не вызывает.
 
 ## Редизайн: светлая тема и grid-workspace
 
@@ -727,8 +727,11 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
 выводит сам: группа (`accident`/`incident`) и живость приходят из BFF, статус
 объекта (тревога, нет данных) BFF считает при чтении.
 
-- Подписи и `factSummary()` — `features/predictions/predictionLabels.ts`,
-  им пользуются журнал данных, история объекта и карточка карты.
+- Подписи, `factSummary()` и `factSensorsSummary()` — `features/predictions/predictionLabels.ts`,
+  им пользуются журнал данных, история объекта и карточка карты. Имена датчиков и пикеты
+  приходят в `sensors` эпизода (модель пикетов не знает, BFF подставляет из справочника);
+  номера датчиков на экран не выводятся, если имя известно. `status` эпизода служебный —
+  живость только по `live`.
 - Карта берёт идущие эпизоды хуком `useLiveFacts` (опрос раз в
   `LIVE_FACTS_REFRESH_MS`) и рисует маршрут `IntruderRoute`: позицию датчика
   даёт вид карты (слой 3 или раскладка схемы), компонент геометрию не знает.
@@ -736,6 +739,34 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
   `useMapRequest`, что у «показать на карте», с эпизодом в поле `route`.
 
 Правила и проверка — [SPEC.md](SPEC.md) §5.
+
+### Карточка прогноза и сводка журнала
+
+Текст карточки собирает BFF (`ForecastText`, BFF `docs/DECISIONS.md`, «Прогнозы модели»): описание
+словами, рекомендация по разделам. Фронт его не пересобирает, только раскладывает: описание —
+абзацами (`pre-line`), в рекомендации строки с двоеточием в конце — заголовки разделов
+(`isRecommendationHeading`).
+
+- Вероятность — `probability` (калиброванная `confidence`); `0` — калибровки нет, в карточке
+  прочерк и «вероятность не посчитана». `score`/`threshold` — место часа среди часов проверки
+  модели, в процентах часов (`formatRank`), и только когда описания нет: описание говорит то же.
+- «Где смотреть» — свидетели с именем датчика и кодом пикета (BFF подставляет при чтении). Нет
+  свидетелей — прямо пишем, что пикет не определён и модель оценивает объект целиком.
+- «Главные признаки модели для типа» — `label ?? feature`; это важность признака для типа, а не
+  разбор тревоги, и карточка так и говорит.
+- Статус `expired` — тревога кончилась без решения (`alarm=false`, `alarmEndedAt`). В журнале у
+  каждой карточки: «тревога держится N ч» или «тревога кончилась …».
+- Заглушить и вернуть заглушённый — только `predictions:manage` (`usePermission`), у диспетчера
+  кнопки нет, а в карточке заглушённого — «снять молчание может главный диспетчер или
+  администратор». BFF проверяет то же самое (`403`). Кому дать `manage`, решает «Конфигурация
+  доступа», в коде ролей нет.
+- Сводка над журналом (`PredictionStatsPanel`, `usePredictionStats`): `GET /predictions/stats` и
+  последний такт модели (`modelControlRepository.getStatus().lastTick`, `/api/ml/status` →
+  `last_tick.alarms_by_type`). Сверка по типам — только когда час такта совпал с последним часом
+  журнала; расхождение и `staleAlarms > 0` подсвечены. Модель недоступна — сводка без сверки.
+  Перечитывается по `prediction.updated`.
+
+Правила — [SPEC.md](SPEC.md) §6.
 
 ## Раздел инженера (`/engineer`)
 
@@ -745,9 +776,11 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
 ходят через историю браузера.
 
 - **`core/registry/sectionRegistry.ts`.** Раздел = `{ id, title, path,
-  mobile?, isVisible(permissions) }`. `workspace` виден, если доступно хоть
-  одно окно из `windowRegistry`; `engineer` — при `tasks:read`, он
-  `mobile`. Меню профиля (`UserMenu`) показывает ссылки на остальные
+  mobile?, isVisible({ permissions, groups }) }` — права и коды групп из
+  `GET /permissions/me`. `workspace` виден, если доступно хоть одно окно из
+  `windowRegistry`; `engineer` — участнику группы `engineers` (с подгруппами,
+  та же группа, что у `/tasks/assignees?role=engineers`) с `tasks:read`, он
+  `mobile`. Не по одному праву: у admins все права, но они не инженеры. Меню профиля (`UserMenu`) показывает ссылки на остальные
   доступные разделы.
 - **`SectionRoute`.** Пока права грузятся, рисует раздел как есть. Раздел
   недоступен — ведёт в первый доступный. Первый вход в приложение на узком
@@ -838,6 +871,34 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
   `label.recipient-item { ... }` той же специфичности, но позже по
   порядку в файле.
 
+## Telegram (`POST /bff/notifications/telegram`, `GET/PUT /bff/users/me/telegram`)
+
+Рядом с конвертом — кнопка-самолётик (`TelegramButton.tsx`), та же схема:
+не окно workspace, гейтит себя `usePermission('notifications', 'create')`
+(право одно на оба канала — у главного диспетчера и админа оно есть, у
+диспетчера по умолчанию нет; решают «Конфигурация доступа», не фронт).
+
+- **Адресат — имя пользователя Telegram, а не chat_id.** Бот не может
+  написать человеку первым: человек сам открывает бота и жмёт «Старт», tf-tg
+  запоминает связь имя → chat_id. Поэтому имя хранится в профиле BFF
+  (`users.telegram`, без @, в нижнем регистре), а привязку делает сам
+  человек. `TelegramProfile.tsx` в меню пользователя — единственное место, где
+  имя ставит себе любой вошедший без права на «Пользователи»
+  (`GET/PUT /bff/users/me/telegram`); ответ несёт `linked` (`true`/`false`/
+  `null` — не удалось проверить) и имя бота для ссылки `t.me/<бот>`. Админ
+  задаёт то же поле в `UsersPanel`/`UserEditForm`, у инженера — в
+  `EngineerTab` (одно поле `users.telegram`, не отдельное инженерное).
+- **Пустая строка — убрать имя, `null`/нет поля — не менять** (контракт
+  `UpdateUserRequest`); формы редактирования шлют `trim()` без `|| null`.
+- **Шаблон имени — один** (`TELEGRAM_USERNAME_PATTERN` в
+  `entities/user/types.ts`) и совпадает с проверкой BFF.
+- **Лимит — одно сообщение Telegram**: `TELEGRAM_MESSAGE_MAX_LENGTH` = 4096
+  минус разметка темы; счётчик считает тему и текст вместе.
+- **Итог — по `results[]`**, как у письма: `TelegramSendStatus`
+  (`sent`/`rateLimited`/`userNotFound`/`noTelegramOnFile`/`notLinked`/
+  `failed`); `notLinked` — `med`: человек не нажал «Старт», это не сбой.
+  В чеклисте пользователи без имени задизейблены («нет Telegram»).
+
 ### `shared/ui/Modal.tsx` — вынесен из email-формы, второй потребитель — редактирование объектов
 
 `SendEmailModal` был первой и единственной модалкой в приложении; когда
@@ -894,7 +955,7 @@ src/
 │   │   └── types.ts            # PagedResult / PageRequest — страницы списков BFF
 │   ├── auth/
 │   │   ├── types.ts
-│   │   ├── authApi.ts           # HTTP-обёртка над /auth/* (login/register/me — logout нет)
+│   │   ├── authApi.ts           # HTTP-обёртка над /auth/* (login/register/me/refresh/logout)
 │   │   ├── authEvents.ts        # pub/sub для "случился 401"
 │   │   └── clearAllCookies.ts    # используется в authStore.logout()
 │   ├── events/dataEvents.ts     # «данные изменились» между окнами (task.created, prediction.updated)
@@ -968,21 +1029,12 @@ src/
 │   ├── presence/
 │   │   ├── types.ts
 │   │   └── presenceRepository.ts      # GET /bff/presence?userIds= — только чтение
-│   ├── modelVersion/
-│   │   ├── types.ts                    # id задаёт клиент, не сервер (см. Фаза 5)
-│   │   └── modelVersionRepository.ts  # GET/POST /bff/model-versions, POST .../activate
-│   ├── coefficient/
-│   │   ├── types.ts
-│   │   └── coefficientRepository.ts   # GET/POST /bff/coefficients — без update(), версионируется
-│   ├── retrainJob/
-│   │   ├── types.ts
-│   │   └── retrainJobRepository.ts    # GET/POST /bff/retrain-jobs — только заявка, не запуск
-│   ├── ignoredRange/
-│   │   ├── types.ts
-│   │   └── ignoredRangeRepository.ts  # GET/POST/DELETE /bff/ignored-ranges[/{id}]
+│   ├── modelControl/
+│   │   ├── types.ts                    # состояние модели: версии, доли, периоды, переобучение
+│   │   └── modelControlRepository.ts  # GET /ml/status, /ml/estimate; POST /bff/model-commands/*
 │   └── notification/
-│       ├── types.ts                    # SendEmailRequest/Response, SUBJECT_MAX_LENGTH/TEXT_MAX_LENGTH
-│       └── notificationRepository.ts  # POST /bff/notifications/email
+│       ├── types.ts                    # SendEmail/SendTelegram Request/Response, лимиты темы/текста/сообщения
+│       └── notificationRepository.ts  # POST /bff/notifications/email, /bff/notifications/telegram
 │
 ├── stores/                  # Zustand — только client state
 │   ├── auth/authStore.ts
@@ -1074,18 +1126,20 @@ src/
 │   │   └── hooks/{useSchedule,useAssignedObjects,useEngineerProfile,useBrigades,usePresence}.ts
 │   ├── modelSettings/
 │   │   ├── ModelSettingsWindow.tsx      # окно workspace: вкладки настроек модели
-│   │   ├── ModelVersionsTab.tsx
-│   │   ├── CoefficientsTab.tsx
-│   │   ├── RetrainJobsTab.tsx
-│   │   ├── IgnoredRangesTab.tsx
+│   │   ├── ModelVersionsTab.tsx          # ротация версий по типам
+│   │   ├── OperatingSharesTab.tsx        # рабочие доли и rejectK, оценка тревог в сутки
+│   │   ├── IgnoredPeriodsTab.tsx         # игнорируемые периоды парка
 │   │   ├── WorkScheduleTab.tsx           # график ППР
 │   │   ├── modelSettingsLabels.ts
-│   │   └── hooks/{useModelVersions,useCoefficients,useRetrainJobs,useIgnoredRanges,useWorkSchedule}.ts
+│   │   └── hooks/{useModelStatus,useWorkSchedule}.ts
 │   └── notifications/
 │       ├── MailButton.tsx               # не окно workspace — гейтит себя локально, открывает Modal
 │       ├── SendEmailModal.tsx
+│       ├── TelegramButton.tsx           # как MailButton — то же право notifications:create
+│       ├── SendTelegramModal.tsx
+│       ├── TelegramProfile.tsx          # блок в меню пользователя: своё имя в Telegram и «Старт» у бота
 │       ├── notificationLabels.ts
-│       └── hooks/useSendEmail.ts
+│       └── hooks/{useSendEmail,useSendTelegram,useMyTelegram}.ts
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
 │   └── workspace/
@@ -1361,11 +1415,14 @@ export const useNotificationsStore = create<NotificationsState>(set => ({
     `permission_denied`), и это различие теряется, если смотреть только на
     HTTP-код. Пример использования — `features/users/hooks/useUsers.ts`.
 - 401 не обрабатывается в компонентах вообще — это происходит централизованно
-  в `core/api/client.ts` → `authEvents` → `authStore.handleUnauthorized()` →
+  в `core/api/client.ts`. Access-токен живёт 10 минут, сессия (refresh-токен) —
+  сутки; BFF продлевает токен сам, а воронка — нет. Поэтому на первый 401
+  клиент один раз продлевает сессию (`POST /auth/refresh`, одновременные 401
+  ждут один общий запрос) и повторяет исходный запрос. Не вышло (или 401 пришёл
+  на сам `/auth/*`) → `authEvents` → `authStore.handleUnauthorized()` →
   редирект на `/login` через `core/routing/navigation.ts`. Это верно для всех
-  трёх auth-кодов 401 (`unauthenticated`/`invalid_token`/`token_refresh_failed`)
-  — все три требуют одного и того же действия (на логин), поэтому клиент
-  реагирует на сам HTTP-статус, а не парсит `code`.
+  трёх auth-кодов 401 (`unauthenticated`/`invalid_token`/`token_refresh_failed`),
+  поэтому клиент реагирует на сам HTTP-статус, а не парсит `code`.
 - Проверка прав — через `core/permissions/permissionService.ts`:
   - `usePermission(resource, action)` — хук, для использования внутри
     компонентов (подписывается на `permissionsStore`, перерисовывает UI, когда

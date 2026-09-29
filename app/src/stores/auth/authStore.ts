@@ -41,12 +41,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     useProfileStore.getState().load(user.id);
   },
 
-  // Нет ручки логаута на бэкенде — сносим куки на фронте и уходим на /login.
-  // См. предупреждение в core/auth/clearAllCookies.ts про HttpOnly-куки.
+  // Куки сессии HttpOnly снимает tf-auth (POST /auth/logout); без этого refresh-кука подняла бы
+  // сессию снова на следующем /auth/me. Не ответил — всё равно уходим на /login.
   logout: () => {
-    clearAllCookies();
     set({ status: 'unauthenticated', user: null });
-    redirectToLogin();
+    void authApi
+      .logout()
+      .catch(() => undefined)
+      .finally(() => {
+        clearAllCookies();
+        redirectToLogin();
+      });
   },
 
   handleUnauthorized: () => {

@@ -101,6 +101,26 @@ export function MailIcon(props: IconProps) {
   );
 }
 
+// Бумажный самолётик — знак Telegram без логотипа бренда.
+export function TelegramIcon(props: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M14.5 2 1.5 7.2l4.6 1.6L14.5 2z" />
+      <path d="M14.5 2 12 14l-5.9-5.2" />
+      <path d="M6.1 8.8V13l2.2-2.3" />
+    </svg>
+  );
+}
+
 export function SearchIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true" {...props}>

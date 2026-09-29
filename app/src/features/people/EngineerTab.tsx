@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 
 import { usePermission } from '../../core/permissions/permissionService';
 import { EngineerStatus } from '../../entities/engineer/types';
+import { TELEGRAM_USERNAME_PATTERN } from '../../entities/user/types';
 import Button from '../../shared/ui/Button';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
 import ChipMultiSelect from '../../shared/ui/ChipMultiSelect';
@@ -41,7 +42,7 @@ export default function EngineerTab({ userId }: EngineerTabProps) {
       setForm({
         brigadeId: profile.brigadeId ?? '',
         phone: profile.phone ?? '',
-        telegram: profile.telegram ?? '',
+        telegram: profile.telegram ? `@${profile.telegram}` : '',
         specialization: profile.specialization,
         status: profile.status,
       });
@@ -61,7 +62,8 @@ export default function EngineerTab({ userId }: EngineerTabProps) {
     await save({
       brigadeId: form.brigadeId || null,
       phone: form.phone || null,
-      telegram: form.telegram || null,
+      // '' — убрать имя; то же поле, что в профиле пользователя (users.telegram).
+      telegram: form.telegram.trim(),
       specialization: form.specialization,
       status: form.status,
     });
@@ -133,10 +135,13 @@ export default function EngineerTab({ userId }: EngineerTabProps) {
             </label>
 
             <label>
-              Telegram
+              Telegram (для уведомлений)
               <input
                 value={form.telegram}
                 onChange={event => setForm(current => ({ ...current, telegram: event.target.value }))}
+                placeholder="@имя"
+                pattern={TELEGRAM_USERNAME_PATTERN}
+                title="Имя пользователя Telegram: 5–32 символа, латиница, цифры и _"
                 disabled={saving}
               />
             </label>

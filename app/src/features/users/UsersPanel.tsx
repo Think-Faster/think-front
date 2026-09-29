@@ -1,10 +1,10 @@
-import { ChangeEvent, FormEvent, useState } from 'react';
+import { ChangeEvent, FormEvent, Fragment, useState } from 'react';
 
 import { usePermission } from '../../core/permissions/permissionService';
 import Button from '../../shared/ui/Button';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
 import EmptyState from '../../shared/ui/EmptyState';
-import { UserListItem } from '../../entities/user/types';
+import { TELEGRAM_USERNAME_PATTERN, UserListItem } from '../../entities/user/types';
 import { CreateUserInput, useCreateUser } from './hooks/useCreateUser';
 import { useUsers } from './hooks/useUsers';
 import UserEditForm from './UserEditForm';
@@ -24,6 +24,7 @@ const emptyForm = {
   lastName: '',
   firstName: '',
   middleName: '',
+  telegram: '',
 };
 
 export default function UsersPanel() {
@@ -54,6 +55,7 @@ export default function UsersPanel() {
             lastName: form.lastName,
             firstName: form.firstName,
             middleName: form.middleName,
+            telegram: form.telegram,
           }
         : {
             accountSource: 'existing',
@@ -62,6 +64,7 @@ export default function UsersPanel() {
             lastName: form.lastName,
             firstName: form.firstName,
             middleName: form.middleName,
+            telegram: form.telegram,
           };
 
     const created = await createUser(input);
@@ -79,41 +82,52 @@ export default function UsersPanel() {
       {error && <div className="status-note rej">{error}</div>}
       {!loading && !error && users.length === 0 && <EmptyState>Пользователей пока нет</EmptyState>}
 
-      {users.map(user => (
-        <div className="hist-item" key={user.id}>
-          <span>
-            {user.lastName} {user.firstName}
-            {user.middleName ? ` ${user.middleName}` : ''}
-          </span>
+      {/* Форма правки раскрывается под своей строкой, а не в конце списка. */}
+      {users.map(user => {
+        const expanded = editingUser?.id === user.id;
 
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span className="d">{user.email ?? 'нет email'}</span>
-            <span className="d">{user.isActive ? 'активен' : 'неактивен'}</span>
+        return (
+          <Fragment key={user.id}>
+            <div className="hist-item">
+              <span>
+                {user.lastName} {user.firstName}
+                {user.middleName ? ` ${user.middleName}` : ''}
+              </span>
 
-            {canEdit && (
-              <button className="chip-filter" onClick={() => setEditingUser(user)}>
-                Изменить
-              </button>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="d">{user.email ?? 'нет email'}</span>
+                {user.telegram && <span className="d">@{user.telegram}</span>}
+                <span className="d">{user.isActive ? 'активен' : 'неактивен'}</span>
+
+                {canEdit && (
+                  <button
+                    className={`chip-filter ${expanded ? 'active' : ''}`}
+                    aria-expanded={expanded}
+                    onClick={() => setEditingUser(expanded ? null : user)}
+                  >
+                    Изменить <span aria-hidden="true">{expanded ? '▴' : '▾'}</span>
+                  </button>
+                )}
+              </span>
+            </div>
+
+            {expanded && (
+              <div className="row-expand">
+                <UserEditForm
+                  user={user}
+                  onCancel={() => setEditingUser(null)}
+                  onSaved={() => {
+                    setEditingUser(null);
+                    reload();
+                  }}
+                />
+              </div>
             )}
-          </span>
-        </div>
-      ))}
+          </Fragment>
+        );
+      })}
 
-      {editingUser ? (
-        <>
-          <p className="pd-section-title">Редактировать пользователя</p>
-
-          <UserEditForm
-            user={editingUser}
-            onCancel={() => setEditingUser(null)}
-            onSaved={() => {
-              setEditingUser(null);
-              reload();
-            }}
-          />
-        </>
-      ) : (
-        canCreate && (
+      {canCreate && (
           <>
             <p className="pd-section-title">Добавить пользователя</p>
 
@@ -205,6 +219,19 @@ export default function UsersPanel() {
                 <input value={form.middleName} onChange={setField('middleName')} disabled={creating} />
               </label>
 
+              <label>
+                Telegram (для уведомлений)
+                <input
+                  value={form.telegram}
+                  onChange={setField('telegram')}
+                  placeholder="@имя"
+                  pattern={TELEGRAM_USERNAME_PATTERN}
+                  title="Имя пользователя Telegram: 5–32 символа, латиница, цифры и _"
+                  autoComplete="off"
+                  disabled={creating}
+                />
+              </label>
+
               {createError && <div className="login-error">{createError}</div>}
 
               <Button type="submit" variant="primary" disabled={creating}>
@@ -212,7 +239,6 @@ export default function UsersPanel() {
               </Button>
             </form>
           </>
-        )
       )}
     </div>
   );

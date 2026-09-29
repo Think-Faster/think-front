@@ -59,6 +59,15 @@ export interface TaskReturn {
   returnedAt: string;
 }
 
+// Датчик заявки из справочника BFF: имя и пикет (в заявке только номер).
+export interface TaskSensor {
+  sensorId: number;
+  name: string | null;
+  sType: string | null;
+  picketId: number | null;
+  picketCode: string | null;
+}
+
 export interface WorkTask extends WorkTaskListItem {
   picketId: number | null;
   description: string | null;
@@ -75,6 +84,9 @@ export interface WorkTask extends WorkTaskListItem {
   assignments: TaskAssignment[];
   reports: TaskReport[];
   returns: TaskReturn[];
+  // код пикета заявки и датчики из справочника (BFF при чтении)
+  picketCode: string | null;
+  sensors: TaskSensor[];
 }
 
 export interface CreateWorkTaskRequest {

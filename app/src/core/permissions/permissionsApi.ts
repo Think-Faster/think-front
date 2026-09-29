@@ -5,6 +5,8 @@ import type { PermissionAction } from './permissionService';
 export interface MyPermissionsResponse {
   userId: string;
   permissions: Record<string, PermissionAction[]>;
+  // Коды групп пользователя, прямые и родительские (роли — это группы).
+  groups?: string[];
 }
 
 export const permissionsApi = {

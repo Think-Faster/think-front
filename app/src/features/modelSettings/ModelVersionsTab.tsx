@@ -1,74 +1,130 @@
-import { FormEvent, useState } from 'react';
+import { useState } from 'react';
 
 import { usePermission } from '../../core/permissions/permissionService';
+import { modelControlRepository } from '../../entities/modelControl/modelControlRepository';
+import { ModelBuild, ModelStatus } from '../../entities/modelControl/types';
+import { FORECAST_TYPES, PredictionType } from '../../entities/prediction/types';
 import Badge from '../../shared/ui/Badge';
 import Button from '../../shared/ui/Button';
-import EmptyState from '../../shared/ui/EmptyState';
-import { useModelVersions } from './hooks/useModelVersions';
+import { predictionTypeLabels } from '../predictions/predictionLabels';
+import { ModelCommandSender } from './hooks/useModelStatus';
 
-export default function ModelVersionsTab() {
-  const { versions, loading, error, createVersion, activateVersion, acting, actionError } = useModelVersions();
+interface Props {
+  status: ModelStatus;
+  send: ModelCommandSender;
+  acting: boolean;
+}
+
+function buildLabel(build: ModelBuild): string {
+  return `v${build.number}${build.name ? ` · ${build.name}` : ''}`;
+}
+
+// Ротация версий (§9.4): у типа может быть несколько собранных версий, какая считает — выбирает админ.
+// «Основная» — модель главной выгрузки.
+export default function ModelVersionsTab({ status, send, acting }: Props) {
   const canManage = usePermission('model_settings', 'manage');
+  const [choice, setChoice] = useState<Partial<Record<PredictionType, string>>>({});
+  const [reason, setReason] = useState('');
 
-  const [id, setId] = useState('');
-  const [name, setName] = useState('');
+  function chosen(type: PredictionType): string {
+    return choice[type] ?? String(status.types[type]?.current ?? '');
+  }
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function handleSwitch(type: PredictionType) {
+    const value = chosen(type);
+    const versionId = value ? Number(value) : null;
 
-    if (await createVersion({ id, name })) {
-      setId('');
-      setName('');
+    const sent = await send(
+      () => modelControlRepository.switchVersion(type, versionId, reason.trim()),
+      next => (next.types[type]?.current ?? null) === versionId
+    );
+
+    if (sent) {
+      setChoice(current => ({ ...current, [type]: undefined }));
+      setReason('');
     }
   }
 
   return (
     <div>
-      {loading && <EmptyState>Загрузка…</EmptyState>}
-      {error && <div className="status-note rej">{error}</div>}
-      {!loading && !error && versions.length === 0 && <EmptyState>Версий модели пока нет</EmptyState>}
-
-      {versions.map(version => (
-        <div className="hist-item" key={version.id}>
-          <div>
-            <div>{version.name}</div>
-            <div className="d">
-              #{version.id}
-              {version.switchedAt ? ` · переключена ${new Date(version.switchedAt).toLocaleString('ru-RU')}` : ''}
-            </div>
-          </div>
-
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {version.isDefault && <Badge tone="low">активна</Badge>}
-
-            {canManage && !version.isDefault && (
-              <button className="chip-filter" onClick={() => activateVersion(version.id)} disabled={acting}>
-                Активировать
-              </button>
-            )}
-          </span>
+      {status.retrain.needed && (
+        <div className="status-note">
+          Нужно переобучение{status.retrain.reason ? `: ${status.retrain.reason}` : ''}.
+          {status.retrain.enabled
+            ? ' Запуск — командой модели.'
+            : ' В этом контуре переобучение выключено: новые версии собираются вне стенда и появляются в списке ниже.'}
         </div>
-      ))}
-
-      {actionError && <div className="login-error">{actionError}</div>}
+      )}
 
       {canManage && (
-        <form className="login-form" onSubmit={handleSubmit}>
+        <form className="login-form" onSubmit={event => event.preventDefault()}>
           <label>
-            ID
-            <input value={id} onChange={event => setId(event.target.value)} disabled={acting} required />
+            Причина переключения
+            <input
+              id="model-version-reason"
+              value={reason}
+              onChange={event => setReason(event.target.value)}
+              disabled={acting}
+            />
           </label>
-
-          <label>
-            Название
-            <input value={name} onChange={event => setName(event.target.value)} disabled={acting} required />
-          </label>
-
-          <Button type="submit" variant="primary" disabled={acting}>
-            {acting ? 'Сохранение…' : 'Добавить версию'}
-          </Button>
         </form>
       )}
+
+      {FORECAST_TYPES.map(type => {
+        const entry = status.types[type];
+        if (!entry) {
+          return null;
+        }
+
+        const current = entry.available.find(build => build.number === entry.current);
+        const changed = chosen(type) !== String(entry.current ?? '');
+
+        return (
+          <div className="hist-item" key={type}>
+            <div>
+              <div>{predictionTypeLabels[type]}</div>
+              <div className="d">
+                считает {current ? buildLabel(current) : entry.current !== null ? `v${entry.current}` : 'основная'}
+                {current?.about ? ` · ${current.about}` : ''}
+              </div>
+            </div>
+
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {entry.available.length === 0 && <Badge tone="low">одна версия</Badge>}
+
+              {canManage && entry.available.length > 0 && (
+                <>
+                  <select
+                    id={`model-version-${type}`}
+                    value={chosen(type)}
+                    onChange={event => setChoice(current => ({ ...current, [type]: event.target.value }))}
+                    disabled={acting}
+                  >
+                    <option value="">основная</option>
+                    {entry.available.map(build => (
+                      <option key={build.number} value={build.number}>
+                        {buildLabel(build)}
+                      </option>
+                    ))}
+                  </select>
+
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => handleSwitch(type)}
+                    disabled={acting || !changed || !reason.trim()}
+                    title={reason.trim() ? undefined : 'Укажите причину переключения'}
+                  >
+                    Переключить
+                  </Button>
+                </>
+              )}
+            </span>
+          </div>
+        );
+      })}
+
+      <div className="form-hint">Порог новой версии модель пересчитает по её прогону 2025 года. Запись о переключении — в аудите модели.</div>
     </div>
   );
 }

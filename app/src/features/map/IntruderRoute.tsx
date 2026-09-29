@@ -1,4 +1,5 @@
 import { FactAlert } from '../../entities/factAlert/types';
+import { factSensorLabel } from '../predictions/predictionLabels';
 import { linePath, Pt } from './geo';
 
 // Короче этого (в экранных пикселях) у отрезка стрелку не рисуем — не поместится.
@@ -33,6 +34,11 @@ function visitsLabel(numbers: number[]): string {
 // Датчики, которых нет в слое карты, пропускаются.
 export default function IntruderRoute({ alert, objectName, position, unit, onSensor }: IntruderRouteProps) {
   const live = alert.live;
+  // Имя и пикет из справочника (sensors эпизода), без него — тип и номер из маршрута.
+  const stopLabel = (sensorId: number, sType: string | null) => {
+    const sensor = alert.sensors.find(item => item.sensorId === sensorId);
+    return sensor?.name ? factSensorLabel(sensor) : `${sType ?? 'Датчик'} №${sensorId}`;
+  };
   const title = `Маршрут нарушителя · ${objectName} · с ${hhmm(alert.startedAt)}${live ? ', идёт' : ''}`;
   const points = alert.route.flatMap((point, index) => {
     const pos = position(point.sensorId);
@@ -95,7 +101,7 @@ export default function IntruderRoute({ alert, objectName, position, unit, onSen
               </text>
             )}
             <title>
-              {visits.map(visit => `${visit.number}. ${visit.sType ?? 'Датчик'} №${visit.sensorId} — ${hhmm(visit.at)}`).join('\n')}
+              {visits.map(visit => `${visit.number}. ${stopLabel(visit.sensorId, visit.sType)} — ${hhmm(visit.at)}`).join('\n')}
             </title>
           </g>
         );

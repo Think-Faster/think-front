@@ -511,6 +511,24 @@ header {
   word-break: break-all;
 }
 
+.tg-profile-row {
+  display: flex;
+  gap: 6px;
+}
+
+.tg-profile-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.tg-profile-state {
+  margin-top: 4px;
+
+  font-size: 11px;
+
+  color: var(--text-dim);
+}
+
 .user-menu-logout {
   width: 100%;
 }
@@ -1762,6 +1780,30 @@ button.queue-item {
   font: inherit;
 }
 
+/* Строка списка, раскрытая на месте (участники группы, правка пользователя):
+   содержимое — сразу под строкой, со сдвигом, до следующей строки. */
+.row-expand {
+  padding: 4px 0 12px 13px;
+
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+
+  background: var(--surface);
+}
+
+.row-toggle-end {
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+}
+
+.row-chevron {
+  color: var(--text-faint);
+
+  font-size: 11px;
+}
+
 .queue-top {
   display: flex;
   justify-content: space-between;
@@ -1793,6 +1835,126 @@ button.queue-item {
   font-family:
     'IBM Plex Mono',
     monospace;
+}
+
+.pstats {
+  margin: 10px 12px 0;
+
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  background: var(--surface);
+
+  font-size: 11.5px;
+}
+
+.pstats summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+
+  padding: 8px 11px;
+
+  color: var(--text-dim);
+
+  cursor: pointer;
+}
+
+.pstats summary b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.pstats-warn {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.pstats-note {
+  margin: 0 11px 8px;
+
+  color: var(--text-dim);
+
+  line-height: 1.45;
+}
+
+.pstats-alert,
+.pstats-error {
+  margin: 0 11px 8px;
+}
+
+.pstats-error {
+  margin: 10px 12px 0;
+}
+
+.pstats-table-wrap {
+  overflow-x: auto;
+
+  margin: 0 11px 8px;
+}
+
+.pstats-table {
+  width: 100%;
+
+  border-collapse: collapse;
+}
+
+.pstats-table th,
+.pstats-table td {
+  padding: 4px 6px;
+
+  border-top: 1px solid var(--border);
+
+  text-align: left;
+  white-space: nowrap;
+}
+
+.pstats-table th {
+  color: var(--text-faint);
+  font-weight: 600;
+  font-size: 10.5px;
+}
+
+.pstats-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pstats-off {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.pd-muted-line {
+  font-size: 11.5px;
+
+  color: var(--text-dim);
+
+  margin: -8px 0 14px;
+}
+
+.pd-text {
+  white-space: pre-line;
+
+  font-size: 12.5px;
+  line-height: 1.5;
+
+  margin: 0 0 18px;
+}
+
+.why-list .why-sub {
+  color: var(--text-faint);
+}
+
+.rec-box .rec-heading {
+  font-weight: 600;
+
+  margin-top: 8px;
+}
+
+.rec-box .rec-heading:first-child {
+  margin-top: 0;
 }
 
 .queue-actions {

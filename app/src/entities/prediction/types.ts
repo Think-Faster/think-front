@@ -22,7 +22,8 @@ export const FORECAST_TYPES: PredictionType[] = [
 // Авария даёт объекту статус «тревога», инцидент — нет (§13.11).
 export type AlertGroup = 'accident' | 'incident';
 
-export type PredictionStatus = 'new' | 'inReview' | 'taken' | 'rejected' | 'muted' | 'closed';
+// expired — тревога модели кончилась (alarm=false), решения по карточке не было.
+export type PredictionStatus = 'new' | 'inReview' | 'taken' | 'rejected' | 'muted' | 'closed' | 'expired';
 
 export type DecisionAction = 'take' | 'reject' | 'mute' | 'reopen';
 
@@ -31,14 +32,21 @@ export interface PredictionListItem {
   objectId: number;
   type: PredictionType;
   topic: string;
-  probability: number; // 0..1
+  // калиброванная вероятность события за горизонт (0..1); 0 — у типа нет калибровки
+  probability: number;
   hourEnd: string;
   sinceHours: number;
   status: PredictionStatus;
+  // тревога модели ещё горит; false — кончилась в alarmEndedAt
+  alarm: boolean;
+  alarmEndedAt: string | null;
 }
 
+// Главные признаки модели для типа (важность признака, а не разбор этой тревоги).
 export interface PredictionFactor {
   feature: string;
+  // подпись словами от модели; нет — показываем feature
+  label: string | null;
   value: number;
   weight: number;
   direction: string;
@@ -49,21 +57,54 @@ export interface PredictionEvidence {
   picketId: number | null;
   ts: string;
   value: number | null;
+  // значение дискретного канала («Обнаружен дым»)
+  valueText: string | null;
+  // из справочника при чтении карточки
+  sensorName: string | null;
+  sensorType: string | null;
+  picketCode: string | null;
 }
 
 export interface Prediction extends PredictionListItem {
   horizonHours: number;
+  // место часа в распределении парка (0..1) и порог тревоги по той же шкале — НЕ вероятность
   score: number;
   threshold: number;
-  alarm: boolean;
   confidence: number;
   description: string | null;
   classification: string | null;
   recommendation: string | null;
   modelVersionId: string | null;
   mutedReason: string | null;
+  // status === 'muted': до какого времени
+  mutedUntil: string | null;
   factors: PredictionFactor[];
   evidence: PredictionEvidence[];
+}
+
+// GET /predictions/stats — сводка журнала и сверка с последним тактом модели.
+export interface PredictionTypeStats {
+  type: PredictionType;
+  // тревога модели горит (любой статус карточки)
+  activeAlarms: number;
+  // new + inReview
+  open: number;
+  taken: number;
+  muted: number;
+  rejected: number;
+  createdLast24h: number;
+  endedLast24h: number;
+}
+
+export interface PredictionStats {
+  lastHourEnd: string | null;
+  activeAlarms: number;
+  // модель не подтверждала дольше часа после последнего часа — потерялись сообщения, в норме 0
+  staleAlarms: number;
+  open: number;
+  createdLast24h: number;
+  endedLast24h: number;
+  byType: PredictionTypeStats[];
 }
 
 export interface PredictionDecision {

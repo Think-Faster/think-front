@@ -1,4 +1,4 @@
-import { FactAlert, factDetails, FactDetails, TemperatureChannel } from '../../entities/factAlert/types';
+import { FactAlert, factDetails, FactDetails, FactSensor, TemperatureChannel } from '../../entities/factAlert/types';
 import { AlertGroup, PredictionStatus, PredictionType } from '../../entities/prediction/types';
 
 export const predictionTypeLabels: Record<PredictionType, string> = {
@@ -43,10 +43,39 @@ function formatNumber(value: number): string {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 });
 }
 
-function channelsSummary(direction: NonNullable<FactDetails['direction']>, channels: TemperatureChannel[]): string {
+// Датчик эпизода словами: имя из справочника (нет — номер) и код пикета.
+export function factSensorLabel(sensor: FactSensor): string {
+  const name = sensor.name || `датчик №${sensor.sensorId}`;
+  return sensor.picketCode ? `${name} (${sensor.picketCode})` : name;
+}
+
+function sensorLabel(sensors: FactSensor[], sensorId: number): string {
+  const sensor = sensors.find(item => item.sensorId === sensorId);
+  return sensor ? factSensorLabel(sensor) : `№${sensorId}`;
+}
+
+// «Где искать» одной строкой: сработавшие датчики с пикетами, первые несколько, остальные числом.
+export function factSensorsSummary(alert: FactAlert): string | null {
+  const triggered = alert.triggerSensorIds.length > 0 ? alert.triggerSensorIds : alert.sensors.map(item => item.sensorId);
+  if (triggered.length === 0) {
+    return null;
+  }
+  const listed = triggered.slice(0, MAX_LISTED_CHANNELS).map(id => sensorLabel(alert.sensors, id));
+  const rest = triggered.length - listed.length;
+  return `сработали: ${listed.join(', ')}${rest > 0 ? ` и ещё ${rest}` : ''}`;
+}
+
+function channelsSummary(
+  direction: NonNullable<FactDetails['direction']>,
+  channels: TemperatureChannel[],
+  sensors: FactSensor[]
+): string {
   const listed = channels
     .slice(0, MAX_LISTED_CHANNELS)
-    .map(channel => `№${channel.sensorId}: ${formatNumber(channel.value)} °C при базе ${formatNumber(channel.baseline)} °C`);
+    .map(
+      channel =>
+        `${sensorLabel(sensors, channel.sensorId)}: ${formatNumber(channel.value)} °C при базе ${formatNumber(channel.baseline)} °C`
+    );
   const rest = channels.length - listed.length;
   return [temperatureDirectionLabels[direction], ...listed, ...(rest > 0 ? [`ещё каналов: ${rest}`] : [])].join(' · ');
 }
@@ -57,10 +86,10 @@ function channelsSummary(direction: NonNullable<FactDetails['direction']>, chann
 export function factSummary(alert: FactAlert): string | null {
   const details = factDetails(alert);
   if (alert.type === 'temperature' && details.direction) {
-    return channelsSummary(details.direction, details.channels ?? []);
+    return channelsSummary(details.direction, details.channels ?? [], alert.sensors);
   }
   if (alert.type === 'fire' && details.temperature) {
-    return channelsSummary(details.temperature.direction, details.temperature.channels);
+    return channelsSummary(details.temperature.direction, details.temperature.channels, alert.sensors);
   }
   if (alert.type === 'blind') {
     return [
@@ -84,6 +113,7 @@ export const predictionStatusLabels: Record<PredictionStatus, string> = {
   rejected: 'отклонён',
   muted: 'заглушен',
   closed: 'закрыт',
+  expired: 'истёк',
 };
 
 export const statusFilterOptions: { value: PredictionStatus | 'all'; label: string }[] = [
@@ -94,6 +124,7 @@ export const statusFilterOptions: { value: PredictionStatus | 'all'; label: stri
   { value: 'rejected', label: 'Отклонённые' },
   { value: 'muted', label: 'Заглушенные' },
   { value: 'closed', label: 'Закрытые' },
+  { value: 'expired', label: 'Истёкшие' },
 ];
 
 // В реальной модели нет поля risk — тон бейджа/акцентной полоски считаем от
@@ -111,8 +142,28 @@ export function probabilityTone(probability: number): 'high' | 'med' | 'low' {
   return 'low';
 }
 
+// 0 — у типа нет калибровки (BFF не подставляет оценку вместо вероятности), показываем прочерк.
 export function formatProbability(probability: number): string {
-  return `${Math.round(probability * 100)}%`;
+  if (probability <= 0) {
+    return '—';
+  }
+
+  return probability < 0.01 ? '<1%' : `${Math.round(probability * 100)}%`;
+}
+
+// Часы словами, как в тексте карточки от BFF: до двух суток — в часах, дальше — в сутках.
+export function formatHours(hours: number): string {
+  return hours < 48 ? `${hours} ч` : `${Math.floor(hours / 24)} сут`;
+}
+
+// Место часа в распределении парка (score/threshold, 0..1) — в процентах часов, не вероятность.
+export function formatRank(value: number): string {
+  return `${(value * 100).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%`;
+}
+
+// Строки рекомендации BFF, которые кончаются двоеточием («Сделать сейчас:»), — заголовки разделов.
+export function isRecommendationHeading(line: string): boolean {
+  return line.trim().endsWith(':');
 }
 
 // Справочник причин отклонения — docs/backend/домены-и-сущности.md (справочники).
