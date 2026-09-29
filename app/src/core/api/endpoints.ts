@@ -13,6 +13,7 @@ export const endpoints = {
     users: {
       list: '/bff/users',
       byId: (id: string) => `/bff/users/${id}`,
+      meTelegram: '/bff/users/me/telegram',
     },
     groups: {
       list: '/bff/groups',
@@ -93,6 +94,7 @@ export const endpoints = {
     readingsScope: '/bff/readings/scope',
     notifications: {
       sendEmail: '/bff/notifications/email',
+      sendTelegram: '/bff/notifications/telegram',
     },
   },
 

@@ -835,6 +835,34 @@ useWorkspaceUrlSync.ts`, тоже удалены). Теперь workspace — э
   `label.recipient-item { ... }` той же специфичности, но позже по
   порядку в файле.
 
+## Telegram (`POST /bff/notifications/telegram`, `GET/PUT /bff/users/me/telegram`)
+
+Рядом с конвертом — кнопка-самолётик (`TelegramButton.tsx`), та же схема:
+не окно workspace, гейтит себя `usePermission('notifications', 'create')`
+(право одно на оба канала — у главного диспетчера и админа оно есть, у
+диспетчера по умолчанию нет; решают «Конфигурация доступа», не фронт).
+
+- **Адресат — имя пользователя Telegram, а не chat_id.** Бот не может
+  написать человеку первым: человек сам открывает бота и жмёт «Старт», tf-tg
+  запоминает связь имя → chat_id. Поэтому имя хранится в профиле BFF
+  (`users.telegram`, без @, в нижнем регистре), а привязку делает сам
+  человек. `TelegramProfile.tsx` в меню пользователя — единственное место, где
+  имя ставит себе любой вошедший без права на «Пользователи»
+  (`GET/PUT /bff/users/me/telegram`); ответ несёт `linked` (`true`/`false`/
+  `null` — не удалось проверить) и имя бота для ссылки `t.me/<бот>`. Админ
+  задаёт то же поле в `UsersPanel`/`UserEditForm`, у инженера — в
+  `EngineerTab` (одно поле `users.telegram`, не отдельное инженерное).
+- **Пустая строка — убрать имя, `null`/нет поля — не менять** (контракт
+  `UpdateUserRequest`); формы редактирования шлют `trim()` без `|| null`.
+- **Шаблон имени — один** (`TELEGRAM_USERNAME_PATTERN` в
+  `entities/user/types.ts`) и совпадает с проверкой BFF.
+- **Лимит — одно сообщение Telegram**: `TELEGRAM_MESSAGE_MAX_LENGTH` = 4096
+  минус разметка темы; счётчик считает тему и текст вместе.
+- **Итог — по `results[]`**, как у письма: `TelegramSendStatus`
+  (`sent`/`rateLimited`/`userNotFound`/`noTelegramOnFile`/`notLinked`/
+  `failed`); `notLinked` — `med`: человек не нажал «Старт», это не сбой.
+  В чеклисте пользователи без имени задизейблены («нет Telegram»).
+
 ### `shared/ui/Modal.tsx` — вынесен из email-формы, второй потребитель — редактирование объектов
 
 `SendEmailModal` был первой и единственной модалкой в приложении; когда
@@ -969,8 +997,8 @@ src/
 │   │   ├── types.ts                    # состояние модели: версии, доли, периоды, переобучение
 │   │   └── modelControlRepository.ts  # GET /ml/status, /ml/estimate; POST /bff/model-commands/*
 │   └── notification/
-│       ├── types.ts                    # SendEmailRequest/Response, SUBJECT_MAX_LENGTH/TEXT_MAX_LENGTH
-│       └── notificationRepository.ts  # POST /bff/notifications/email
+│       ├── types.ts                    # SendEmail/SendTelegram Request/Response, лимиты темы/текста/сообщения
+│       └── notificationRepository.ts  # POST /bff/notifications/email, /bff/notifications/telegram
 │
 ├── stores/                  # Zustand — только client state
 │   ├── auth/authStore.ts
@@ -1071,8 +1099,11 @@ src/
 │   └── notifications/
 │       ├── MailButton.tsx               # не окно workspace — гейтит себя локально, открывает Modal
 │       ├── SendEmailModal.tsx
+│       ├── TelegramButton.tsx           # как MailButton — то же право notifications:create
+│       ├── SendTelegramModal.tsx
+│       ├── TelegramProfile.tsx          # блок в меню пользователя: своё имя в Telegram и «Старт» у бота
 │       ├── notificationLabels.ts
-│       └── hooks/useSendEmail.ts
+│       └── hooks/{useSendEmail,useSendTelegram,useMyTelegram}.ts
 │
 ├── widgets/                 # самостоятельные UI-блоки для workspace
 │   └── workspace/

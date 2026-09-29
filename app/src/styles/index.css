@@ -511,6 +511,24 @@ header {
   word-break: break-all;
 }
 
+.tg-profile-row {
+  display: flex;
+  gap: 6px;
+}
+
+.tg-profile-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.tg-profile-state {
+  margin-top: 4px;
+
+  font-size: 11px;
+
+  color: var(--text-dim);
+}
+
 .user-menu-logout {
   width: 100%;
 }

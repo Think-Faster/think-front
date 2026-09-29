@@ -4,7 +4,7 @@ import { usePermission } from '../../core/permissions/permissionService';
 import Button from '../../shared/ui/Button';
 import ChipFilterGroup from '../../shared/ui/ChipFilterGroup';
 import EmptyState from '../../shared/ui/EmptyState';
-import { UserListItem } from '../../entities/user/types';
+import { TELEGRAM_USERNAME_PATTERN, UserListItem } from '../../entities/user/types';
 import { CreateUserInput, useCreateUser } from './hooks/useCreateUser';
 import { useUsers } from './hooks/useUsers';
 import UserEditForm from './UserEditForm';
@@ -24,6 +24,7 @@ const emptyForm = {
   lastName: '',
   firstName: '',
   middleName: '',
+  telegram: '',
 };
 
 export default function UsersPanel() {
@@ -54,6 +55,7 @@ export default function UsersPanel() {
             lastName: form.lastName,
             firstName: form.firstName,
             middleName: form.middleName,
+            telegram: form.telegram,
           }
         : {
             accountSource: 'existing',
@@ -62,6 +64,7 @@ export default function UsersPanel() {
             lastName: form.lastName,
             firstName: form.firstName,
             middleName: form.middleName,
+            telegram: form.telegram,
           };
 
     const created = await createUser(input);
@@ -93,6 +96,7 @@ export default function UsersPanel() {
 
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span className="d">{user.email ?? 'нет email'}</span>
+                {user.telegram && <span className="d">@{user.telegram}</span>}
                 <span className="d">{user.isActive ? 'активен' : 'неактивен'}</span>
 
                 {canEdit && (
@@ -213,6 +217,19 @@ export default function UsersPanel() {
               <label>
                 Отчество
                 <input value={form.middleName} onChange={setField('middleName')} disabled={creating} />
+              </label>
+
+              <label>
+                Telegram (для уведомлений)
+                <input
+                  value={form.telegram}
+                  onChange={setField('telegram')}
+                  placeholder="@имя"
+                  pattern={TELEGRAM_USERNAME_PATTERN}
+                  title="Имя пользователя Telegram: 5–32 символа, латиница, цифры и _"
+                  autoComplete="off"
+                  disabled={creating}
+                />
               </label>
 
               {createError && <div className="login-error">{createError}</div>}
