@@ -8,9 +8,18 @@ export interface FactRoutePoint {
   at: string;
 }
 
+// Датчик эпизода из справочника BFF: как назвать и где искать (модель пикетов не знает).
+export interface FactSensor {
+  sensorId: number;
+  name: string | null;
+  sType: string | null;
+  picketId: number | null;
+  picketCode: string | null;
+}
+
 // Тревога по факту: эпизод, который модель ведёт, пока он идёт (live) —
-// lastAt, маршрут и подробности обновляются каждый час. status — строка BFF
-// без закрытого списка значений.
+// lastAt, маршрут и подробности обновляются каждый час. status — служебное
+// поле BFF, всегда «active»: в UI не выводится, идёт ли эпизод — live.
 export interface FactAlert {
   id: string;
   objectId: number;
@@ -24,6 +33,8 @@ export interface FactAlert {
   status: string;
   route: FactRoutePoint[];
   detailsJson: string | null;
+  // сработавшие датчики и точки маршрута
+  sensors: FactSensor[];
 }
 
 export interface TemperatureChannel {

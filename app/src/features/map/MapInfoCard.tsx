@@ -5,7 +5,7 @@ import { FactAlert } from '../../entities/factAlert/types';
 import { MonitoredObject } from '../../entities/object/types';
 import Button from '../../shared/ui/Button';
 import { openWindowWithObject } from '../../stores/workspace/windowScope';
-import { alertGroupLabels, factSummary, predictionTypeLabels } from '../predictions/predictionLabels';
+import { alertGroupLabels, factSensorsSummary, factSummary, predictionTypeLabels } from '../predictions/predictionLabels';
 import { channelHint } from '../sensors/sensorLabels';
 import { City } from './city';
 import { CollectorModel, fallbackSystem, roleLabels, systemByName } from './collector';
@@ -73,12 +73,14 @@ function FactList({ facts, byId, withObject }: { facts: FactAlert[]; byId: Map<n
     <ul className="map-info-list">
       {facts.map(alert => {
         const summary = factSummary(alert);
+        const where = factSensorsSummary(alert);
         const since = new Date(alert.startedAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
         return (
           <li key={alert.id}>
             {withObject && `${byId.get(alert.objectId)?.name ?? `#${alert.objectId}`}: `}
             <b>{predictionTypeLabels[alert.type]}</b> · {alertGroupLabels[alert.group]} · с {since}
             {summary && <div className="map-info-note">{summary}</div>}
+            {where && <div className="map-info-note">{where}</div>}
           </li>
         );
       })}

@@ -14,6 +14,7 @@ import { WorkTaskListItem } from '../../../entities/task/types';
 import {
   alertGroupLabels,
   alertGroupTone,
+  factSensorsSummary,
   factSummary,
   formatProbability,
   predictionStatusLabels,
@@ -120,11 +121,9 @@ export function useObjectHistory(objectId: number | null) {
             key: `a:${alert.id}`,
             kind: 'factAlert' as const,
             at: alert.announcedAt,
-            title: `${predictionTypeLabels[alert.type]} · ${alertGroupLabels[alert.group]}${alert.live ? ', идёт' : ''}`,
-            meta:
-              factSummary(alert) ??
-              (alert.triggerSensorIds.length > 0 ? `датчики ${alert.triggerSensorIds.join(', ')}` : ''),
-            badge: alert.status,
+            title: `${predictionTypeLabels[alert.type]} · ${alertGroupLabels[alert.group]}`,
+            meta: [factSummary(alert), factSensorsSummary(alert)].filter(Boolean).join(' · '),
+            badge: alert.live ? 'идёт' : 'закончилось',
             tone: alertGroupTone[alert.group],
           })),
         ];
