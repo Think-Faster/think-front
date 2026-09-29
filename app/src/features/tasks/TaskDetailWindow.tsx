@@ -22,6 +22,7 @@ import {
   taskResultOptions,
   taskSourceTypeLabels,
   taskStatusLabels,
+  taskSensorLabel,
   taskStatusTone,
 } from './taskLabels';
 
@@ -205,6 +206,7 @@ export default function TaskDetailWindow() {
 
       <p className="pd-loc">
         {object ? object.name : `Объект #${task.objectId}`} · {taskSourceTypeLabels[task.sourceType]}
+        {task.picketCode && ` · пикет ${task.picketCode}`}
       </p>
 
       {(canLogs || canMap) && (
@@ -214,7 +216,16 @@ export default function TaskDetailWindow() {
         </div>
       )}
 
-      {task.description && <p>{task.description}</p>}
+      {task.description && <p className="pd-text">{task.description}</p>}
+
+      {(task.workType || task.faultClassification) && (
+        <div className="pd-horizon">
+          {task.workType && <div>Тип работ: {task.workType}</div>}
+          {task.faultClassification && <div>Неисправность: {task.faultClassification}</div>}
+        </div>
+      )}
+
+      {task.comment && <p className="pd-text">Комментарий: {task.comment}</p>}
 
       <div className="pd-horizon">
         Приоритет: <b>{task.priority}</b>
@@ -248,6 +259,18 @@ export default function TaskDetailWindow() {
             </Button>
           )}
         </div>
+      )}
+
+      {task.sensors.length > 0 && (
+        <>
+          <p className="pd-section-title">Датчики</p>
+          {task.sensors.map(sensor => (
+            <div className="hist-item" key={sensor.sensorId}>
+              <span>{taskSensorLabel(sensor)}</span>
+              {sensor.sType && <span className="d">{sensor.sType}</span>}
+            </div>
+          ))}
+        </>
       )}
 
       <p className="pd-section-title">Прогнозы-основания</p>
@@ -355,6 +378,8 @@ export default function TaskDetailWindow() {
           <span>
             {taskResultLabel(report.resultCode)}
             {report.worksDone ? ` · ${report.worksDone}` : ''}
+            {report.actualState ? ` · состояние: ${report.actualState}` : ''}
+            {report.comment ? ` · ${report.comment}` : ''}
           </span>
 
           <span className="d">{userName(report.engineerId)}</span>

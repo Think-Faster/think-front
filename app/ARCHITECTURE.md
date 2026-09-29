@@ -313,6 +313,11 @@ GeoJSON, следующий уровень поверх CRUD. `entities/object`/
 
 #### Фаза 3 (заявки и работы) — что добавлено
 
+- **Где работать** (29.09): `WorkTask.picketCode` и `sensors` — BFF подставляет из справочника
+  при чтении, как у прогнозов и эпизодов по факту. Карточка диспетчера показывает пикет,
+  датчики, тип работ, неисправность и весь отчёт; раздел инженера берёт `sensors`, когда нет
+  слоя карты. Правила — [SPEC.md](SPEC.md) §7.
+
 - `entities/task` — `WorkTask`/`WorkTaskListItem` под реальный `WorkTaskDto`:
   вложенные `predictions[]`/`assignments[]`/`reports[]`/`returns[]` как
   отдельные под-сущности (`TaskPrediction`/`TaskAssignment`/`TaskReport`/
