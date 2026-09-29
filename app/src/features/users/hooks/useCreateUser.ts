@@ -9,6 +9,7 @@ interface ProfileFields {
   lastName: string;
   firstName: string;
   middleName: string;
+  telegram: string;
 }
 
 // Учётка (сервис аутентификации) и профиль (BFF) — разные сущности с разными
@@ -70,6 +71,7 @@ export function useCreateUser() {
         firstName: input.firstName,
         middleName: input.middleName || null,
         email: input.email || null,
+        telegram: input.telegram.trim() || null,
       });
 
       return user;

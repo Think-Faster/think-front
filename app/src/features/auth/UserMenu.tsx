@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { CurrentUser } from '../../core/auth/types';
 import { SectionDefinition, visibleSections } from '../../core/registry/sectionRegistry';
 import { UserListItem } from '../../entities/user/types';
+import TelegramProfile from '../notifications/TelegramProfile';
 import { useDismiss } from '../../shared/hooks/useDismiss';
 import { useAuthStore } from '../../stores/auth/authStore';
 import { usePermissionsStore } from '../../stores/permissions/permissionsStore';
@@ -78,6 +79,8 @@ export default function UserMenu() {
             <div className="field-label">ID профиля</div>
             <div className="user-menu-id-value mono">{profile?.id ?? '—'}</div>
           </div>
+
+          <TelegramProfile active={open} />
 
           {others.map(section => (
             <Link key={section.id} className="btn user-menu-section" to={section.path} onClick={() => setOpen(false)}>

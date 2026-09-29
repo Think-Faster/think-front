@@ -1,7 +1,7 @@
 import { ChangeEvent, FormEvent, useState } from 'react';
 
 import Button from '../../shared/ui/Button';
-import { UserListItem } from '../../entities/user/types';
+import { TELEGRAM_USERNAME_PATTERN, UserListItem } from '../../entities/user/types';
 import { useUpdateUser } from './hooks/useUpdateUser';
 
 interface UserEditFormProps {
@@ -20,9 +20,10 @@ export default function UserEditForm({ user, onSaved, onCancel }: UserEditFormPr
     authUserId: user.authUserId,
     isActive: user.isActive,
     email: user.email ?? '',
+    telegram: user.telegram ? `@${user.telegram}` : '',
   });
 
-  function setField(field: 'lastName' | 'firstName' | 'middleName' | 'authUserId' | 'email') {
+  function setField(field: 'lastName' | 'firstName' | 'middleName' | 'authUserId' | 'email' | 'telegram') {
     return (event: ChangeEvent<HTMLInputElement>) =>
       setForm(current => ({ ...current, [field]: event.target.value }));
   }
@@ -37,6 +38,8 @@ export default function UserEditForm({ user, onSaved, onCancel }: UserEditFormPr
       authUserId: form.authUserId,
       isActive: form.isActive,
       email: form.email || null,
+      // '' — убрать имя; BFF сохраняет без @ и в нижнем регистре.
+      telegram: form.telegram.trim(),
     });
 
     if (updated) {
@@ -69,6 +72,18 @@ export default function UserEditForm({ user, onSaved, onCancel }: UserEditFormPr
       <label>
         Email (для уведомлений)
         <input type="email" value={form.email} onChange={setField('email')} disabled={loading} />
+      </label>
+
+      <label>
+        Telegram (для уведомлений)
+        <input
+          value={form.telegram}
+          onChange={setField('telegram')}
+          placeholder="@имя"
+          pattern={TELEGRAM_USERNAME_PATTERN}
+          title="Имя пользователя Telegram: 5–32 символа, латиница, цифры и _"
+          disabled={loading}
+        />
       </label>
 
       <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
