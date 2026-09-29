@@ -41,6 +41,7 @@ export const endpoints = {
     },
     predictions: {
       list: '/bff/predictions',
+      stats: '/bff/predictions/stats',
       byId: (id: string) => `/bff/predictions/${id}`,
       decisions: (id: string) => `/bff/predictions/${id}/decisions`,
     },

@@ -11,9 +11,21 @@ import ListFooter from '../../shared/ui/ListFooter';
 import SearchField, { matchesSearch } from '../../shared/ui/SearchField';
 import { useObjects } from '../objects/hooks/useObjects';
 import PredictionFilters from './PredictionFilters';
-import { formatProbability, predictionTypeLabels, predictionStatusLabels, probabilityTone } from './predictionLabels';
+import PredictionStatsPanel from './PredictionStatsPanel';
+import {
+  formatHours,
+  formatProbability,
+  predictionTypeLabels,
+  predictionStatusLabels,
+  probabilityTone,
+} from './predictionLabels';
 
-// «Журнал прогнозов»: новые сверху (BFF сортирует по HourEnd), по 10 штук.
+// «Журнал прогнозов»: новые сверху (BFF сортирует по HourEnd), по 10 штук; над списком — сводка
+// потока карточек и сверка с моделью (PredictionStatsPanel).
+function formatTs(value: string): string {
+  return new Date(value).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+}
+
 export default function PredictionQueueWindow() {
   const location = useLocation();
   const { objects } = useObjects();
@@ -44,6 +56,8 @@ export default function PredictionQueueWindow() {
       <div className="win-search">
         <SearchField value={search} onChange={setSearch} />
       </div>
+
+      <PredictionStatsPanel />
 
       <PredictionFilters
         status={status}
@@ -83,7 +97,10 @@ export default function PredictionQueueWindow() {
               <div className="queue-desc">{prediction.topic}</div>
 
               <div className="queue-meta">
-                {predictionStatusLabels[prediction.status]} · {prediction.sinceHours} ч
+                {predictionStatusLabels[prediction.status]} ·{' '}
+                {prediction.alarm
+                  ? `тревога держится ${formatHours(prediction.sinceHours)}`
+                  : `тревога кончилась${prediction.alarmEndedAt ? ` ${formatTs(prediction.alarmEndedAt)}` : ''}`}
               </div>
             </Link>
           );

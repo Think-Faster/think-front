@@ -35,6 +35,7 @@ interface RawStatus {
   settings_bounds: { share: Record<string, [number, number]>; reject_k: [number, number] };
   gaps: { version: number; rows: { a: string; b: string; comment?: string | null }[] };
   retrain: { enabled: boolean; needed: boolean; reason: string | null };
+  last_tick?: { hour_end?: string; alarms_by_type?: Record<string, number> };
 }
 
 function byType<T, R>(raw: Record<string, T>, map: (value: T) => R): Record<PredictionType, R> {
@@ -52,6 +53,9 @@ export const modelControlRepository = {
         current: typeof entry.version === 'number' ? entry.version : null,
         available: entry.available,
       })),
+      lastTick: data.last_tick?.hour_end
+        ? { hourEnd: data.last_tick.hour_end, alarmsByType: byType(data.last_tick.alarms_by_type ?? {}, count => count) }
+        : null,
       settings: {
         version: data.settings.version,
         changed: data.settings.changed,

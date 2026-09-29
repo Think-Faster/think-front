@@ -6,6 +6,7 @@ import {
   Prediction,
   PredictionDecision,
   PredictionListItem,
+  PredictionStats,
   PredictionStatus,
 } from './types';
 
@@ -25,6 +26,11 @@ export const predictionRepository = {
       params: filter,
     });
 
+    return data;
+  },
+
+  async getStats(): Promise<PredictionStats> {
+    const { data } = await apiClient.get<PredictionStats>(endpoints.bff.predictions.stats);
     return data;
   },
 

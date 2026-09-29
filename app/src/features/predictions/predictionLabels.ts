@@ -84,6 +84,7 @@ export const predictionStatusLabels: Record<PredictionStatus, string> = {
   rejected: 'отклонён',
   muted: 'заглушен',
   closed: 'закрыт',
+  expired: 'истёк',
 };
 
 export const statusFilterOptions: { value: PredictionStatus | 'all'; label: string }[] = [
@@ -94,6 +95,7 @@ export const statusFilterOptions: { value: PredictionStatus | 'all'; label: stri
   { value: 'rejected', label: 'Отклонённые' },
   { value: 'muted', label: 'Заглушенные' },
   { value: 'closed', label: 'Закрытые' },
+  { value: 'expired', label: 'Истёкшие' },
 ];
 
 // В реальной модели нет поля risk — тон бейджа/акцентной полоски считаем от
@@ -111,8 +113,28 @@ export function probabilityTone(probability: number): 'high' | 'med' | 'low' {
   return 'low';
 }
 
+// 0 — у типа нет калибровки (BFF не подставляет оценку вместо вероятности), показываем прочерк.
 export function formatProbability(probability: number): string {
-  return `${Math.round(probability * 100)}%`;
+  if (probability <= 0) {
+    return '—';
+  }
+
+  return probability < 0.01 ? '<1%' : `${Math.round(probability * 100)}%`;
+}
+
+// Часы словами, как в тексте карточки от BFF: до двух суток — в часах, дальше — в сутках.
+export function formatHours(hours: number): string {
+  return hours < 48 ? `${hours} ч` : `${Math.floor(hours / 24)} сут`;
+}
+
+// Место часа в распределении парка (score/threshold, 0..1) — в процентах часов, не вероятность.
+export function formatRank(value: number): string {
+  return `${(value * 100).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%`;
+}
+
+// Строки рекомендации BFF, которые кончаются двоеточием («Сделать сейчас:»), — заголовки разделов.
+export function isRecommendationHeading(line: string): boolean {
+  return line.trim().endsWith(':');
 }
 
 // Справочник причин отклонения — docs/backend/домены-и-сущности.md (справочники).

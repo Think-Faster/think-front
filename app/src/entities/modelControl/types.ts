@@ -42,8 +42,16 @@ export interface IgnoredPeriod {
   comment: string;
 }
 
+// Последний такт модели: сколько тревог по типам она отправила за час (сверка с журналом прогнозов).
+export interface ModelLastTick {
+  hourEnd: string;
+  alarmsByType: Partial<Record<PredictionType, number>>;
+}
+
 export interface ModelStatus {
   types: Record<PredictionType, ModelTypeVersion>;
+  // null — модель ещё не делала такт после запуска
+  lastTick: ModelLastTick | null;
   settings: OperatingSettings;
   bounds: OperatingBounds;
   gaps: { version: number; rows: IgnoredPeriod[] };
