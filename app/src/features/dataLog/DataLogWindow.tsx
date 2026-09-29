@@ -12,7 +12,13 @@ import SearchField, { matchesSearch } from '../../shared/ui/SearchField';
 import { openWindowWithObject, useWindowObject } from '../../stores/workspace/windowScope';
 import { showRouteOnMap } from '../map/mapRequest';
 import { useObjects } from '../objects/hooks/useObjects';
-import { alertGroupLabels, alertGroupTone, factSummary, predictionTypeLabels } from '../predictions/predictionLabels';
+import {
+  alertGroupLabels,
+  alertGroupTone,
+  factSensorsSummary,
+  factSummary,
+  predictionTypeLabels,
+} from '../predictions/predictionLabels';
 
 // «Журнал данных»: тревоги по факту — что уже сработало на датчиках, в
 // отличие от прогнозов. Источник — /fact-alerts, новые сверху. По умолчанию
@@ -44,7 +50,7 @@ export default function DataLogWindow() {
       objectName(alert.objectId),
       predictionTypeLabels[alert.type],
       alertGroupLabels[alert.group],
-      alert.status
+      factSensorsSummary(alert) ?? ''
     )
   );
 
@@ -86,6 +92,7 @@ export default function DataLogWindow() {
 
         {shown.map(alert => {
           const summary = factSummary(alert);
+          const where = factSensorsSummary(alert);
           const tone = alertGroupTone[alert.group];
           return (
             <div key={alert.id} className={`queue-item risk-${tone}`}>
@@ -105,10 +112,9 @@ export default function DataLogWindow() {
 
               {summary && <div className="queue-desc">{summary}</div>}
 
-              <div className="queue-meta">
-                Объявлено {new Date(alert.announcedAt).toLocaleString('ru-RU')} · {alert.status}
-                {alert.triggerSensorIds.length > 0 && ` · датчики: ${alert.triggerSensorIds.join(', ')}`}
-              </div>
+              {where && <div className="queue-desc">{where}</div>}
+
+              <div className="queue-meta">Объявлено {new Date(alert.announcedAt).toLocaleString('ru-RU')}</div>
 
               {canOpenMap && alert.route.length > 0 && (
                 <div className="queue-actions">
