@@ -1,4 +1,4 @@
-import { ReturnTargetType, TaskSourceType, WorkTaskStatus } from '../../entities/task/types';
+import { ReturnTargetType, TaskSensor, TaskSourceType, WorkTaskStatus } from '../../entities/task/types';
 import { textChoiceOptions } from '../../shared/ui/ChoiceField';
 
 export const taskSourceTypeLabels: Record<TaskSourceType, string> = {
@@ -134,4 +134,10 @@ export function newTaskNumber(now = new Date()): string {
   const tail = Math.floor(Math.random() * 36 * 36).toString(36).padStart(2, '0').toUpperCase();
 
   return `З-${date}-${time}-${tail}`;
+}
+
+// Датчик заявки словами: имя из справочника (нет — номер) и пикет.
+export function taskSensorLabel(sensor: TaskSensor): string {
+  const name = sensor.name || `датчик №${sensor.sensorId}`;
+  return sensor.picketCode ? `${name} (${sensor.picketCode})` : name;
 }
