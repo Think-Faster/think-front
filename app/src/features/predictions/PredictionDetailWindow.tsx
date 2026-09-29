@@ -11,8 +11,12 @@ import { showObjectOnMap } from '../map/mapRequest';
 import { useObjects } from '../objects/hooks/useObjects';
 import { usePrediction } from './hooks/usePrediction';
 import {
+  formatHours,
   formatProbability,
+  formatRank,
+  isRecommendationHeading,
   POSSIBLE_ACCIDENT_LABEL,
+  predictionStatusLabels,
   predictionTypeLabels,
   probabilityTone,
   REJECT_REASON_OTHER,
@@ -30,6 +34,10 @@ function formatTs(value: string): string {
   return new Date(value).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+function formatValue(value: number): string {
+  return value.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+}
+
 export default function PredictionDetailWindow() {
   // Первая карточка — прогноз из адреса /predictions/:id, копия — свой.
   const predictionId = useWindowEntityId();
@@ -37,6 +45,9 @@ export default function PredictionDetailWindow() {
   const { objects } = useObjects();
   const { prediction, loading, error, decide, takeToTask, deciding, decisionError } = usePrediction(predictionId);
   const canDecide = usePermission('predictions', 'update');
+  // «Заглушить» прячет тревоги пары объект-тип от всей смены, поэтому нужно право predictions:manage
+  // (главный диспетчер и админ по «Конфигурации доступа»). BFF проверяет то же и отвечает 403.
+  const canManage = usePermission('predictions', 'manage');
   const canReadTasks = usePermission('tasks', 'read');
   const canMap = usePermission('objects', 'read');
   const canReadings = usePermission('readings', 'read');
@@ -61,6 +72,7 @@ export default function PredictionDetailWindow() {
 
   const object = objects.find(item => item.id === prediction.objectId);
   const tone = probabilityTone(prediction.probability);
+  const typeLabel = predictionTypeLabels[prediction.type];
 
   // BFF заводит заявку сам и отдаёт её id; без права читать заявки остаёмся в карточке.
   async function handleTake() {
@@ -102,19 +114,22 @@ export default function PredictionDetailWindow() {
   }
 
   const canAct = canDecide && (prediction.status === 'new' || prediction.status === 'inReview');
-  const canReopen = canDecide && (prediction.status === 'taken' || prediction.status === 'rejected' || prediction.status === 'muted');
+  // Вернуть заглушённый значит снять молчание пары, поэтому здесь тоже нужно право manage.
+  const canReopen =
+    prediction.status === 'muted'
+      ? canManage
+      : canDecide && (prediction.status === 'taken' || prediction.status === 'rejected' || prediction.status === 'expired');
 
   return (
     <div className="pd-body">
       <div className="pd-risk-row">
-        <Badge tone={tone}>{predictionTypeLabels[prediction.type]}</Badge>
+        <Badge tone={tone}>{typeLabel}</Badge> <Badge>{predictionStatusLabels[prediction.status]}</Badge>
       </div>
 
       <p className="pd-title">{prediction.topic}</p>
 
       <p className="pd-loc">
-        {object ? object.name : `Объект #${prediction.objectId}`} ·{' '}
-        {new Date(prediction.hourEnd).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
+        {object ? object.name : `Объект #${prediction.objectId}`} · {formatTs(prediction.hourEnd)}
       </p>
 
       {/* §13.11: объект «слепой» — прогноз опирается на то, что было до потери данных */}
@@ -131,60 +146,105 @@ export default function PredictionDetailWindow() {
         </div>
       )}
 
+      {/* Вероятность калиброванная (confidence); 0 значит, что калибровки у типа нет. score — место
+          часа среди часов проверки модели, а не вероятность, поэтому он показан отдельно, в процентах часов. */}
       <div className="pd-prob">
         <span className="num">{formatProbability(prediction.probability)}</span>
-        <span className="unit">вероятность</span>
+        <span className="unit">
+          {prediction.probability > 0
+            ? `вероятность события за ${formatHours(prediction.horizonHours)}`
+            : 'вероятность не посчитана: у типа нет калибровки'}
+        </span>
       </div>
 
       <ProgressBar percent={Math.round(prediction.probability * 100)} />
 
-      <div className="pd-horizon">
-        Горизонт прогноза: <b>{prediction.horizonHours} ч</b>
-      </div>
+      {/* Описание от BFF уже говорит то же словами; без описания — хотя бы оценка против порога. */}
+      {!prediction.description && (
+        <div className="pd-horizon">
+          Оценка часа выше, чем у <b>{formatRank(prediction.score)}</b> часов проверки модели, порог тревоги —{' '}
+          <b>{formatRank(prediction.threshold)}</b>
+        </div>
+      )}
+
+      <p className="pd-muted-line">
+        {prediction.alarm
+          ? `Тревога держится ${formatHours(prediction.sinceHours)}.`
+          : `Тревога модели кончилась${prediction.alarmEndedAt ? ` ${formatTs(prediction.alarmEndedAt)}` : ''}.`}
+        {prediction.status === 'muted' &&
+          ` Заглушен${prediction.mutedUntil ? ` до ${formatTs(prediction.mutedUntil)}` : ''}: тревоги «${typeLabel}» по объекту не показываются.`}
+      </p>
 
       {prediction.description && (
         <>
           <p className="pd-section-title">Описание</p>
-          <p>{prediction.description}</p>
+          <p className="pd-text">{prediction.description}</p>
         </>
+      )}
+
+      <p className="pd-section-title">Где смотреть</p>
+      {prediction.evidence.length > 0 ? (
+        <ul className="why-list">
+          {prediction.evidence.map(item => (
+            <li key={`${item.sensorId}-${item.ts}`}>
+              <span>
+                {item.sensorName ?? `Датчик №${item.sensorId}`}
+                {item.sensorType && <span className="why-sub"> ({item.sensorType})</span>} ·{' '}
+                {item.picketCode ?? (item.picketId !== null ? `пикет №${item.picketId}` : 'пикет не определён')}
+                {item.valueText ? ` · ${item.valueText}` : item.value !== null ? ` · ${formatValue(item.value)}` : ''}
+                <span className="why-sub"> · {formatTs(item.ts)}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="pd-text">
+          Пикет не определён: модель оценивает объект целиком, а датчики типа «{typeLabel}» за последние часы
+          событий не давали.
+        </p>
       )}
 
       {prediction.factors.length > 0 && (
         <>
-          <p className="pd-section-title">Факторы</p>
+          <p className="pd-section-title">Главные признаки модели для типа «{typeLabel}»</p>
 
           <ul className="why-list">
             {prediction.factors.map(factor => (
               <li key={factor.feature}>
-                {factor.feature}: {factor.value}
-                {(factor.weight !== 0 || factor.direction) &&
-                  ` (${[factor.weight !== 0 ? `вес ${factor.weight}` : '', factor.direction].filter(Boolean).join(', ')})`}
+                <span>
+                  {factor.label ?? factor.feature}: <b>{formatValue(factor.value)}</b>
+                  {(factor.weight !== 0 || factor.direction) && (
+                    <span className="why-sub">
+                      {' '}
+                      ({[factor.weight !== 0 ? `вес ${factor.weight}` : '', factor.direction].filter(Boolean).join(', ')})
+                    </span>
+                  )}
+                </span>
               </li>
             ))}
           </ul>
+
+          <p className="pd-muted-line">
+            Значения взяты у этого объекта в этот час. Признаки — самые весомые для типа в целом, а не разбор именно
+            этой тревоги.
+          </p>
         </>
       )}
 
-      {prediction.evidence.length > 0 && (
-        <>
-          <p className="pd-section-title">Показания-свидетели</p>
-
-          <ul className="why-list">
-            {prediction.evidence.map(item => (
-              <li key={`${item.sensorId}-${item.ts}`}>
-                Датчик #{item.sensorId}
-                {item.picketId !== null && `, пикет ${item.picketId}`} · {formatTs(item.ts)}
-                {item.value !== null && ` · ${item.value}`}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
+      {/* Текст от BFF (ForecastText.Recommendation): строки с двоеточием в конце — заголовки разделов. */}
       {prediction.recommendation && (
         <div className="rec-box">
           <div className="lbl">Рекомендация</div>
-          <div className="txt" style={{ whiteSpace: 'pre-line' }}>{prediction.recommendation}</div>
+          <div className="txt">
+            {prediction.recommendation
+              .split('\n')
+              .filter(line => line.trim() !== '')
+              .map((line, index) => (
+                <div key={index} className={isRecommendationHeading(line) ? 'rec-heading' : undefined}>
+                  {line}
+                </div>
+              ))}
+          </div>
         </div>
       )}
 
@@ -196,9 +256,11 @@ export default function PredictionDetailWindow() {
             Отклонить
           </Button>
 
-          <Button disabled={deciding} onClick={startMute}>
-            Заглушить
-          </Button>
+          {canManage && (
+            <Button disabled={deciding} onClick={startMute}>
+              Заглушить
+            </Button>
+          )}
 
           <Button variant="primary" disabled={deciding} onClick={handleTake}>
             Взять в работу
@@ -250,7 +312,7 @@ export default function PredictionDetailWindow() {
       {muting && (
         <form className="login-form" onSubmit={handleMute}>
           <label>
-            Не показывать тревоги этого типа по объекту до
+            Не показывать тревоги «{typeLabel}» по объекту до
             <input
               type="datetime-local"
               value={mutedUntil}
@@ -284,12 +346,16 @@ export default function PredictionDetailWindow() {
 
       {prediction.status === 'muted' && (
         <div className="status-note rej">
-          Заглушен
-          {prediction.mutedReason && prediction.mutedReason !== 'decision' ? ` · ${prediction.mutedReason}` : ''}
+          Заглушен{prediction.mutedUntil ? ` до ${formatTs(prediction.mutedUntil)}` : ''}
+          {!canManage && '. Снять молчание может главный диспетчер или администратор'}
         </div>
       )}
 
       {prediction.status === 'closed' && <div className="status-note ok">Закрыт</div>}
+
+      {prediction.status === 'expired' && (
+        <div className="status-note rej">Истёк: тревога кончилась раньше, чем по ней приняли решение</div>
+      )}
 
       {canReopen && (
         <div className="pd-actions">
